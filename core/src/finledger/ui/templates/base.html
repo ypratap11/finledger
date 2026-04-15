@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FinLedger — {% block title %}{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; }
+    nav { background: #111; color: #fff; padding: 0.75rem 1rem; }
+    nav a { color: #fff; margin-right: 1rem; text-decoration: none; }
+    main { padding: 1rem 1.5rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 0.5rem; font-size: 0.9rem; }
+    th { background: #f7f7f7; }
+    .pill { padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; }
+    .pill-ok { background: #d4edda; }
+    .pill-err { background: #f8d7da; }
+    .pill-pending { background: #fff3cd; }
+    .mono { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/">Inbox</a><a href="/journal">Journal</a><a href="/recon">Reconciliation</a>
+</nav>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Journal{% endblock %}
+{% block content %}
+<h1>Journal Entries</h1>
+<table>
+<thead><tr><th>Posted</th><th>Memo</th><th>Status</th><th>Source Event</th><th></th></tr></thead>
+<tbody>
+{% for e in entries %}
+<tr>
+  <td class="mono">{{ e.posted_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+  <td>{{ e.memo }}</td>
+  <td><span class="pill pill-ok">{{ e.status }}</span></td>
+  <td class="mono">{{ e.source_event_id or "(manual)" }}</td>
+  <td><a href="/journal/{{ e.id }}">view</a></td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}
