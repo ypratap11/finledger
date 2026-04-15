@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from finledger.ledger.post import post_entry
 from finledger.models.inbox import SourceEvent

@@ -4,8 +4,8 @@ import json
 from datetime import date
 from pathlib import Path
 import pytest
-from sqlalchemy import select, text
-from finledger.export.base import DateRange, ExportIntegrityError
+from sqlalchemy import text
+from finledger.export.base import DateRange
 from finledger.export.csv_exporter import CsvJournalExporter
 from finledger.ingest.writer import insert_source_event
 from finledger.posting.engine import run_once

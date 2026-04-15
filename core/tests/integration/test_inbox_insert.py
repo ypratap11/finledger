@@ -1,6 +1,5 @@
 import json
 import pytest
-from sqlalchemy import text
 from finledger.ingest.writer import insert_source_event
 from finledger.ingest.hash_chain import GENESIS_HASH, compute_row_hash
 

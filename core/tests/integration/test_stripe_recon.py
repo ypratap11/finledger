@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 from finledger.ingest.writer import insert_source_event
-from finledger.models.recon import ReconRun, ReconBreak
+from finledger.models.recon import ReconBreak
 from finledger.posting.engine import run_once
 from finledger.recon.stripe_ledger import StripeBalanceTx, run_stripe_ledger_recon
 
