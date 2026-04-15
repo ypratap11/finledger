@@ -1,0 +1,10 @@
+{
+  "eventType": "invoice.posted",
+  "invoice": {
+    "id": "INV-1001",
+    "invoiceNumber": "I-1001",
+    "accountId": "ACC-XYZ",
+    "amount": 100000,
+    "currency": "USD"
+  }
+}
