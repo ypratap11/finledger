@@ -37,7 +37,10 @@ packages = ["src/finledger"]
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint]
+ignore = ["E741"]  # allow short loop vars like `l` in ledger comprehensions
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
