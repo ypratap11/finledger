@@ -27,7 +27,8 @@ async def session(engine):
 async def clean_tables(engine):
     async with engine.begin() as conn:
         await conn.execute(text(
-            "TRUNCATE ledger.journal_lines, ledger.journal_entries, ledger.accounts, "
+            "TRUNCATE recon.recon_breaks, recon.recon_runs, "
+            "ledger.journal_lines, ledger.journal_entries, ledger.accounts, "
             "inbox.source_events RESTART IDENTITY CASCADE"
         ))
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
