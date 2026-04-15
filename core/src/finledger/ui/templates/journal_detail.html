@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Entry {{ entry.id }}{% endblock %}
+{% block content %}
+<h1>Journal Entry</h1>
+<p><strong>ID:</strong> <span class="mono">{{ entry.id }}</span></p>
+<p><strong>Posted:</strong> {{ entry.posted_at }}</p>
+<p><strong>Memo:</strong> {{ entry.memo }}</p>
+<p><strong>Source Event:</strong> <span class="mono">{{ entry.source_event_id or "(manual)" }}</span></p>
+<h2>Lines</h2>
+<table>
+<thead><tr><th>Account</th><th>Side</th><th>Amount</th><th>Currency</th><th>External Ref</th></tr></thead>
+<tbody>
+{% for l in lines %}
+<tr>
+  <td>{{ l.account_code }}</td>
+  <td>{{ l.side }}</td>
+  <td class="mono">{{ "%d.%02d"|format(l.amount_cents // 100, l.amount_cents % 100) }}</td>
+  <td>{{ l.currency }}</td>
+  <td class="mono">{{ l.external_ref or "" }}</td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}

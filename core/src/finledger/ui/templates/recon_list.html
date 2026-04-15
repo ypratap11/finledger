@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Reconciliation{% endblock %}
+{% block content %}
+<h1>Reconciliation Runs</h1>
+<table>
+<thead><tr><th>Started</th><th>Type</th><th>Period</th><th>Matched</th><th>Unmatched</th><th>Mismatched</th></tr></thead>
+<tbody>
+{% for r in runs %}
+<tr>
+  <td class="mono">{{ r.started_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+  <td>{{ r.recon_type }}</td>
+  <td>{{ r.period_start }} → {{ r.period_end }}</td>
+  <td>{{ r.matched_count }}</td>
+  <td>{{ r.unmatched_count }}</td>
+  <td>{{ r.mismatched_count }}</td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}

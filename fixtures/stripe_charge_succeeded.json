@@ -1,0 +1,14 @@
+{
+  "id": "evt_stripe_1",
+  "type": "charge.succeeded",
+  "data": {
+    "object": {
+      "id": "ch_abc123",
+      "amount": 100000,
+      "currency": "usd",
+      "paid": true,
+      "customer": "cus_xyz",
+      "metadata": {"invoice_ref": "I-1001"}
+    }
+  }
+}

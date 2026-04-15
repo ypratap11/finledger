@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<h1>Source Events</h1>
+<p>
+  Total: {{ total }} | Processed: {{ processed }} | Stuck: {{ stuck }}
+</p>
+<table>
+<thead><tr><th>Received</th><th>Source</th><th>Type</th><th>External ID</th><th>Status</th></tr></thead>
+<tbody>
+{% for row in rows %}
+<tr>
+  <td class="mono">{{ row.received_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+  <td>{{ row.source }}</td>
+  <td class="mono">{{ row.event_type }}</td>
+  <td class="mono">{{ row.external_id }}</td>
+  <td>
+    {% if row.processing_error %}
+      <span class="pill pill-err">ERROR</span>
+    {% elif row.processed_at %}
+      <span class="pill pill-ok">POSTED</span>
+    {% else %}
+      <span class="pill pill-pending">PENDING</span>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}
