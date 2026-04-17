@@ -73,3 +73,22 @@ async def test_run_recognition_posts_journal_entry_and_records_event(session):
     assert events[0].obligation_id == obl.id
     assert events[0].recognized_cents == 10000
     assert events[0].recognized_through == date(2026, 5, 10)
+
+
+@pytest.mark.asyncio
+async def test_run_recognition_is_idempotent(session):
+    await _seed_contract_and_obligation(
+        session, total=31000, start=date(2026, 5, 1), end=date(2026, 5, 31),
+    )
+    await session.commit()
+
+    first = await run_recognition(session, through_date=date(2026, 5, 10))
+    await session.commit()
+    second = await run_recognition(session, through_date=date(2026, 5, 10))
+    await session.commit()
+    assert second.id == first.id
+
+    runs = (await session.execute(select(RecognitionRun))).scalars().all()
+    assert len(runs) == 1
+    events = (await session.execute(select(RecognitionEvent))).scalars().all()
+    assert len(events) == 1
