@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <style>
     :root {
@@ -29,6 +30,14 @@
       --radius-sm: 6px;
       --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
       --shadow: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+      --paper: #faf8f3;
+      --ink-serif: #1c1917;
+      --rule: rgba(15, 23, 42, 0.12);
+      --rule-strong: rgba(15, 23, 42, 0.25);
+      --money-recognized: #1a4d3a;
+      --money-deferred: #c2410c;
+      --money-neutral: #78716c;
+      --display: 'Fraunces', 'Times New Roman', Georgia, serif;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -217,6 +226,7 @@
     <a href="/flow" {% if active == "flow" %}class="active"{% endif %}>Flow</a>
     <a href="/" {% if active == "inbox" %}class="active"{% endif %}>Inbox</a>
     <a href="/journal" {% if active == "journal" %}class="active"{% endif %}>Journal</a>
+    <a href="/revrec" {% if active == "revrec" %}class="active"{% endif %}>Revenue</a>
     <a href="/recon" {% if active == "recon" %}class="active"{% endif %}>Reconciliation</a>
   </div>
 </nav>
