@@ -1,9 +1,8 @@
-import uuid
-from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 from finledger.ingest.writer import insert_source_event
 from finledger.models.revrec import Contract, PerformanceObligation
+from finledger.posting.engine import run_once as run_posting
 from finledger.revrec.genesis import from_zuora_invoice
 
 
@@ -85,9 +84,6 @@ async def test_genesis_is_idempotent_on_external_ref(session):
 
     contracts = (await session.execute(select(Contract))).scalars().all()
     assert len(contracts) == 1
-
-
-from finledger.posting.engine import run_once as run_posting
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,18 @@ See `docs/superpowers/specs/2026-04-14-finledger-design.md` for the full design,
 - **Pluggable GL export** — `JournalExporter` protocol + `CsvJournalExporter` aggregates period journals to CSV with sha256 audit trail. SAP/Oracle connectors are M2 drop-ins.
 - **Property-based tests** — `trial balance == 0` invariant holds under randomized event sequences; inbox replay is deterministic.
 
+## What M2a-1 adds (ASC 606 Step 5)
+
+- **Contracts + performance obligations.** Auto-created from Zuora `invoice.posted` events that carry `metadata.service_period_start` / `service_period_end`, with an admin fallback API (`POST /revrec/contracts`, `POST /revrec/contracts/{id}/obligations`) for one-off cases.
+- **Recognition engine.** Ratable (daily accrual) + point-in-time patterns. On-demand trigger (`POST /revrec/run`) or daily scheduled job (`python -m finledger.workers.revrec_scheduler`). One aggregated journal entry per run (DR Deferred Revenue / CR Revenue); per-obligation audit trail in `revrec.recognition_events`.
+- **Waterfall view.** 12-month projection at `/revrec` with Backlog / Next-3 / Beyond pillars, contract detail pages with recognized/deferred progress bars, and a chronological recognition log.
+- **Editorial-finance UI.** Fraunces display type, bone/cream paper surface, hairline rules, JetBrains Mono tabular numerics — distinct from the M1 utilitarian dashboard because revrec is the long-form analytical surface.
+- **Property invariants.** Full recognition over random obligation sets keeps trial balance at zero AND recognizes exactly the contracted total.
+
+See `docs/superpowers/specs/2026-04-16-m2a-1-revrec-design.md` for the full design.
+
+M2a-2 (SSP allocation + contract modifications) and M2a-3 (variable consideration + constraint) are planned follow-ups. Consumption-based recognition is M2a-1.5.
+
 ## Run locally
 
     docker compose up -d postgres

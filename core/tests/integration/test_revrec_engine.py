@@ -2,7 +2,6 @@ import uuid
 from datetime import date, datetime, timezone
 import pytest
 from sqlalchemy import select, func
-from finledger.ledger.accounts import get_account_id
 from finledger.models.ledger import JournalEntry, JournalLine, Account
 from finledger.models.revrec import Contract, PerformanceObligation, RecognitionRun, RecognitionEvent
 from finledger.revrec.engine import run_recognition
