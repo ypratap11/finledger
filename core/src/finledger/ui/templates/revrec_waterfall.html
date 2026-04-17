@@ -52,7 +52,7 @@
 {% for row in contract_rows %}
 <tr>
   <td><a href="/revrec/contracts/{{ row.contract_id }}" class="link mono">{{ row.external_ref }}</a></td>
-  {% for v in row.values %}
+  {% for v in row.cells %}
     <td class="num">{% if v %}${{ "{:,.0f}".format(v / 100) }}{% else %}<span class="dim">—</span>{% endif %}</td>
   {% endfor %}
   <td class="num" style="border-left: 2px solid var(--line)">${{ "{:,.0f}".format(row.total / 100) }}</td>

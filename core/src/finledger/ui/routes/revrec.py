@@ -280,12 +280,12 @@ async def waterfall(
     # Contract rows, sorted by total descending
     contract_rows = []
     for cid, months_map in per_contract.items():
-        values = [months_map.get(str(k), 0) for k in month_keys_sorted] + [months_map.get(BEYOND_KEY, 0)]
+        cells = [months_map.get(str(k), 0) for k in month_keys_sorted] + [months_map.get(BEYOND_KEY, 0)]
         contract_rows.append({
             "external_ref": contract_refs.get(cid, str(cid)),
             "contract_id": str(cid),
-            "total": sum(values),
-            "values": values,
+            "total": sum(cells),
+            "cells": cells,
         })
     contract_rows.sort(key=lambda r: -r["total"])
 
