@@ -85,3 +85,28 @@ async def test_genesis_is_idempotent_on_external_ref(session):
 
     contracts = (await session.execute(select(Contract))).scalars().all()
     assert len(contracts) == 1
+
+
+from finledger.posting.engine import run_once as run_posting
+
+
+@pytest.mark.asyncio
+async def test_posting_engine_auto_creates_contract_for_zuora(session):
+    payload = {
+        "eventType": "invoice.posted",
+        "invoice": {
+            "id": "INV-PIPE-1", "invoiceNumber": "I-PIPE-1",
+            "accountId": "ACC-PIPE", "amount": 36500, "currency": "USD",
+            "metadata": {"service_period_start": "2026-05-01",
+                         "service_period_end": "2026-05-31"},
+        },
+    }
+    await insert_source_event(session, "zuora", "invoice.posted", "INV-PIPE-1", payload)
+    await session.commit()
+
+    posted = await run_posting(session)
+    assert posted == 1
+
+    contracts = (await session.execute(select(Contract))).scalars().all()
+    assert len(contracts) == 1
+    assert contracts[0].external_ref == "I-PIPE-1"
