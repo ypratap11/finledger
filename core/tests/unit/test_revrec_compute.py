@@ -58,3 +58,28 @@ def test_ratable_fully_recognized_returns_none():
     s = snap(31000, date(2026, 5, 1), date(2026, 5, 31))
     d = compute_recognition(s, 31000, date(2026, 5, 31), date(2026, 6, 1))
     assert d is None
+
+
+def test_ratable_rounding_absorbs_on_last_day():
+    # $100 / 7 days, daily_cents = 1428, remainder absorbed past end_date
+    s = snap(10000, date(2026, 5, 1), date(2026, 5, 7))
+    d_mid = compute_recognition(s, 0, None, date(2026, 5, 6))
+    assert d_mid.recognized_cents == 1428 * 6
+    d_end = compute_recognition(s, d_mid.recognized_cents, d_mid.recognized_through, date(2026, 5, 8))
+    assert d_mid.recognized_cents + d_end.recognized_cents == 10000
+
+
+def test_ratable_run_only_once_at_end_still_totals_correctly():
+    s = snap(10000, date(2026, 5, 1), date(2026, 5, 7))
+    d = compute_recognition(s, 0, None, date(2026, 5, 7))
+    # days=7 * 1428 = 9996 (< 10000), returns 9996
+    assert d.recognized_cents == 9996
+    # A second run past end_date picks up the remainder
+    d2 = compute_recognition(s, 9996, date(2026, 5, 7), date(2026, 5, 8))
+    assert d2.recognized_cents == 4
+
+
+def test_ratable_single_day_period():
+    s = snap(5000, date(2026, 5, 1), date(2026, 5, 1))
+    d = compute_recognition(s, 0, None, date(2026, 5, 1))
+    assert d.recognized_cents == 5000
