@@ -74,6 +74,48 @@ class ObligationOut(BaseModel):
     id: UUID
 
 
+@router.get("/contracts/{contract_id}")
+async def contract_detail(
+    contract_id: UUID, request: Request,
+    session: AsyncSession = Depends(get_async_session),
+):
+    from finledger.models.revrec import RecognitionEvent
+
+    contract = (await session.execute(
+        select(Contract).where(Contract.id == contract_id)
+    )).scalar_one_or_none()
+    if contract is None:
+        raise HTTPException(404)
+    obligations = (await session.execute(
+        select(PerformanceObligation).where(PerformanceObligation.contract_id == contract_id)
+    )).scalars().all()
+
+    rec_rows = (await session.execute(
+        select(
+            RecognitionEvent.obligation_id,
+            func.coalesce(func.sum(RecognitionEvent.recognized_cents), 0),
+        ).where(RecognitionEvent.obligation_id.in_([o.id for o in obligations]))
+        .group_by(RecognitionEvent.obligation_id)
+    )).all()
+    recognized_map = {oid: int(cents) for oid, cents in rec_rows}
+
+    obl_views = []
+    for o in obligations:
+        recognized = recognized_map.get(o.id, 0)
+        pct = int(100 * recognized / o.total_amount_cents) if o.total_amount_cents else 0
+        obl_views.append({
+            "obligation": o,
+            "recognized": recognized,
+            "deferred": o.total_amount_cents - recognized,
+            "pct": pct,
+        })
+
+    return request.app.state.templates.TemplateResponse(
+        request=request, name="revrec_contract_detail.html",
+        context={"contract": contract, "obligations": obl_views},
+    )
+
+
 @router.post("/contracts/{contract_id}/obligations", status_code=201, response_model=ObligationOut)
 async def create_obligation(
     contract_id: UUID, body: ObligationIn,
