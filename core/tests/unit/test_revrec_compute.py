@@ -3,7 +3,6 @@ import pytest
 from finledger.revrec.compute import (
     compute_recognition,
     ObligationSnapshot,
-    RecognitionDelta,
 )
 
 
