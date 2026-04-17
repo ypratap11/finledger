@@ -92,3 +92,30 @@ async def test_run_recognition_is_idempotent(session):
     assert len(runs) == 1
     events = (await session.execute(select(RecognitionEvent))).scalars().all()
     assert len(events) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_recognition_aggregates_multiple_obligations_into_one_entry(session):
+    await _seed_contract_and_obligation(
+        session, total=31000, start=date(2026, 5, 1), end=date(2026, 5, 31),
+    )
+    await _seed_contract_and_obligation(
+        session, total=62000, start=date(2026, 5, 1), end=date(2026, 5, 31),
+    )
+    await session.commit()
+
+    run = await run_recognition(session, through_date=date(2026, 5, 10))
+    await session.commit()
+
+    assert run.obligations_processed == 2
+    assert run.total_recognized_cents == 30000  # 10 days * (1000 + 2000)
+
+    lines_count = (await session.execute(
+        select(func.count()).select_from(JournalLine).where(JournalLine.entry_id == run.journal_entry_id)
+    )).scalar_one()
+    assert lines_count == 2  # aggregated, not 4
+
+    events_count = (await session.execute(
+        select(func.count()).select_from(RecognitionEvent).where(RecognitionEvent.run_id == run.id)
+    )).scalar_one()
+    assert events_count == 2
