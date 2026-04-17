@@ -1,55 +1,71 @@
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from finledger.ui.app import app
 from finledger.ui.routes.inbox import get_session as inbox_get_session
 from finledger.ui.routes.journal import get_session as journal_get_session
 from finledger.ui.routes.recon import get_session as recon_get_session
+from finledger.ui.routes.flow import get_session as flow_get_session
 
 
-@pytest_asyncio.fixture
-async def client_with_fresh_db():
-    """Override the module-level SessionLocal with a per-test engine so each
-    test gets a session bound to the current event loop."""
-    test_engine = create_async_engine(
-        "postgresql+asyncpg://finledger:finledger@localhost:5432/finledger"
+@pytest.fixture
+def client_with_fresh_db():
+    """Per-test sync engine so the UI routes (sync psycopg) can be exercised
+    via ASGITransport within an asyncio event loop without async<->sync clashes."""
+    test_engine = create_engine(
+        "postgresql+psycopg://finledger:finledger@localhost:5432/finledger"
     )
-    TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
+    TestSession = sessionmaker(test_engine, expire_on_commit=False)
 
-    async def override():
-        async with TestSession() as s:
+    def override():
+        with TestSession() as s:
             yield s
 
     app.dependency_overrides[inbox_get_session] = override
     app.dependency_overrides[journal_get_session] = override
     app.dependency_overrides[recon_get_session] = override
-    try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
-        ) as c:
-            yield c
-    finally:
-        app.dependency_overrides.clear()
-        await test_engine.dispose()
+    app.dependency_overrides[flow_get_session] = override
+    yield app
+    app.dependency_overrides.clear()
+    test_engine.dispose()
 
 
 @pytest.mark.asyncio
 async def test_inbox_page_returns_200(client_with_fresh_db):
-    r = await client_with_fresh_db.get("/")
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/")
     assert r.status_code == 200
     assert "Source Events" in r.text
 
 
 @pytest.mark.asyncio
 async def test_journal_page_returns_200(client_with_fresh_db):
-    r = await client_with_fresh_db.get("/journal")
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/journal")
     assert r.status_code == 200
     assert "Journal Entries" in r.text
 
 
 @pytest.mark.asyncio
 async def test_recon_page_returns_200(client_with_fresh_db):
-    r = await client_with_fresh_db.get("/recon")
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/recon")
     assert r.status_code == 200
-    assert "Reconciliation Runs" in r.text
+    assert "Reconciliation" in r.text
+
+
+@pytest.mark.asyncio
+async def test_flow_page_returns_200(client_with_fresh_db):
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/flow")
+    assert r.status_code == 200
+    assert "Pipeline" in r.text

@@ -1,18 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Journal{% endblock %}
+{% set active = "journal" %}
 {% block content %}
 <h1>Journal Entries</h1>
+<p class="subtitle">Double-entry postings. Every entry has balanced debits and credits.</p>
+
+<div class="card">
+{% if entries %}
 <table>
-<thead><tr><th>Posted</th><th>Memo</th><th>Status</th><th>Source Event</th><th></th></tr></thead>
+<thead>
+  <tr><th>Posted</th><th>Memo</th><th>Status</th><th>Source Event</th><th></th></tr>
+</thead>
 <tbody>
 {% for e in entries %}
 <tr>
   <td class="mono">{{ e.posted_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-  <td>{{ e.memo }}</td>
+  <td>{{ e.memo or "-" }}</td>
   <td><span class="pill pill-ok">{{ e.status }}</span></td>
   <td class="mono">{{ e.source_event_id or "(manual)" }}</td>
-  <td><a href="/journal/{{ e.id }}">view</a></td>
+  <td><a href="/journal/{{ e.id }}" class="link">View &rarr;</a></td>
 </tr>
 {% endfor %}
-</tbody></table>
+</tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1F4D2;</div>
+  <div class="empty-title">No journal entries yet</div>
+  <div class="empty-hint">Entries appear after the posting engine processes inbox events.</div>
+</div>
+{% endif %}
+</div>
 {% endblock %}

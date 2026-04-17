@@ -1,19 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Reconciliation{% endblock %}
+{% set active = "recon" %}
 {% block content %}
-<h1>Reconciliation Runs</h1>
+<h1>Reconciliation</h1>
+<p class="subtitle">Matches external source data (Stripe, Zuora) against the ledger.</p>
+
+<div class="card">
+{% if runs %}
 <table>
-<thead><tr><th>Started</th><th>Type</th><th>Period</th><th>Matched</th><th>Unmatched</th><th>Mismatched</th></tr></thead>
+<thead>
+  <tr><th>Started</th><th>Type</th><th>Period</th><th style="text-align: right;">Matched</th><th style="text-align: right;">Unmatched</th><th style="text-align: right;">Mismatched</th></tr>
+</thead>
 <tbody>
 {% for r in runs %}
 <tr>
   <td class="mono">{{ r.started_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
   <td>{{ r.recon_type }}</td>
-  <td>{{ r.period_start }} → {{ r.period_end }}</td>
-  <td>{{ r.matched_count }}</td>
-  <td>{{ r.unmatched_count }}</td>
-  <td>{{ r.mismatched_count }}</td>
+  <td class="mono">{{ r.period_start }} &rarr; {{ r.period_end }}</td>
+  <td style="text-align: right;"><span class="pill pill-ok">{{ r.matched_count }}</span></td>
+  <td style="text-align: right;">
+    {% if r.unmatched_count > 0 %}<span class="pill pill-err">{{ r.unmatched_count }}</span>{% else %}<span class="mono" style="color: var(--ink-3);">0</span>{% endif %}
+  </td>
+  <td style="text-align: right;">
+    {% if r.mismatched_count > 0 %}<span class="pill pill-err">{{ r.mismatched_count }}</span>{% else %}<span class="mono" style="color: var(--ink-3);">0</span>{% endif %}
+  </td>
 </tr>
 {% endfor %}
-</tbody></table>
+</tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x2696;</div>
+  <div class="empty-title">No reconciliation runs yet</div>
+  <div class="empty-hint">Run a recon job to see matches and breaks here.</div>
+</div>
+{% endif %}
+</div>
 {% endblock %}

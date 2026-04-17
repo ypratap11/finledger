@@ -1,12 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Inbox{% endblock %}
+{% set active = "inbox" %}
 {% block content %}
 <h1>Source Events</h1>
-<p>
-  Total: {{ total }} | Processed: {{ processed }} | Stuck: {{ stuck }}
-</p>
+<p class="subtitle">Hash-chained inbox of webhook events from Stripe, Zuora, and other sources.</p>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Total</div>
+    <div class="kpi-value">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Processed</div>
+    <div class="kpi-value ok">{{ processed }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Stuck &gt; 5 min</div>
+    <div class="kpi-value {% if stuck > 0 %}err{% endif %}">{{ stuck }}</div>
+  </div>
+</div>
+
+<div class="card">
+{% if rows %}
 <table>
-<thead><tr><th>Received</th><th>Source</th><th>Type</th><th>External ID</th><th>Status</th></tr></thead>
+<thead>
+  <tr><th>Received</th><th>Source</th><th>Type</th><th>External ID</th><th>Status</th></tr>
+</thead>
 <tbody>
 {% for row in rows %}
 <tr>
@@ -16,14 +35,23 @@
   <td class="mono">{{ row.external_id }}</td>
   <td>
     {% if row.processing_error %}
-      <span class="pill pill-err">ERROR</span>
+      <span class="pill pill-err">Error</span>
     {% elif row.processed_at %}
-      <span class="pill pill-ok">POSTED</span>
+      <span class="pill pill-ok">Posted</span>
     {% else %}
-      <span class="pill pill-pending">PENDING</span>
+      <span class="pill pill-pending">Pending</span>
     {% endif %}
   </td>
 </tr>
 {% endfor %}
-</tbody></table>
+</tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1F4E5;</div>
+  <div class="empty-title">Inbox is empty</div>
+  <div class="empty-hint">Webhook events will appear here as they arrive.</div>
+</div>
+{% endif %}
+</div>
 {% endblock %}

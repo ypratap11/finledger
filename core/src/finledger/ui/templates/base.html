@@ -3,25 +3,222 @@
 <head>
   <meta charset="utf-8" />
   <title>FinLedger — {% block title %}{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234f46e5%22/><text y=%2270%22 x=%2250%22 text-anchor=%22middle%22 font-size=%2260%22 font-family=%22system-ui%22 font-weight=%22700%22 fill=%22white%22>F</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; }
-    nav { background: #111; color: #fff; padding: 0.75rem 1rem; }
-    nav a { color: #fff; margin-right: 1rem; text-decoration: none; }
-    main { padding: 1rem 1.5rem; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 0.5rem; font-size: 0.9rem; }
-    th { background: #f7f7f7; }
-    .pill { padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; }
-    .pill-ok { background: #d4edda; }
-    .pill-err { background: #f8d7da; }
-    .pill-pending { background: #fff3cd; }
-    .mono { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+    :root {
+      --brand: #4f46e5;
+      --brand-dark: #3730a3;
+      --brand-tint: #eef2ff;
+      --ok: #059669;
+      --ok-tint: #d1fae5;
+      --warn: #d97706;
+      --warn-tint: #fef3c7;
+      --err: #dc2626;
+      --err-tint: #fee2e2;
+      --ink: #0f172a;
+      --ink-2: #334155;
+      --ink-3: #64748b;
+      --line: #e2e8f0;
+      --surface: #ffffff;
+      --bg: #f8fafc;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.85em; }
+
+    /* Top nav */
+    nav.top {
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--brand) 0%, #7c3aed 100%);
+      color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.9rem;
+    }
+    .nav-links { display: flex; gap: 0.25rem; }
+    .nav-links a {
+      color: var(--ink-3);
+      text-decoration: none;
+      padding: 0.4rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.15s;
+    }
+    .nav-links a:hover { color: var(--ink); background: var(--bg); }
+    .nav-links a.active { color: var(--brand); background: var(--brand-tint); }
+
+    /* Main */
+    main { padding: 2rem 2rem 4rem; max-width: 1280px; margin: 0 auto; }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 0 0 0.25rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: var(--ink);
+    }
+    .subtitle { color: var(--ink-3); margin-bottom: 1.5rem; font-size: 0.9rem; }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s;
+    }
+    .kpi:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .kpi-label {
+      font-size: 0.75rem;
+      color: var(--ink-3);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .kpi-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-top: 0.3rem;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      letter-spacing: -0.01em;
+    }
+    .kpi-value.ok { color: var(--ok); }
+    .kpi-value.warn { color: var(--warn); }
+    .kpi-value.err { color: var(--err); }
+    .kpi-sub { font-size: 0.75rem; color: var(--ink-3); margin-top: 0.25rem; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Tables */
+    table { border-collapse: collapse; width: 100%; }
+    thead th {
+      background: var(--bg);
+      text-align: left;
+      padding: 0.65rem 1rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      color: var(--ink-3);
+      border-bottom: 1px solid var(--line);
+    }
+    tbody td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.875rem;
+      color: var(--ink-2);
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover { background: var(--bg); }
+    tbody tr:nth-child(even) { background: rgba(248, 250, 252, 0.4); }
+    tbody tr:nth-child(even):hover { background: var(--bg); }
+
+    /* Pills & tags */
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .pill-ok { background: var(--ok-tint); color: var(--ok); }
+    .pill-err { background: var(--err-tint); color: var(--err); }
+    .pill-pending { background: var(--warn-tint); color: var(--warn); }
+    .pill-ok::before, .pill-err::before, .pill-pending::before {
+      content: ""; width: 5px; height: 5px; border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Empty state */
+    .empty {
+      padding: 3rem 2rem;
+      text-align: center;
+      color: var(--ink-3);
+    }
+    .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .empty-title { font-weight: 600; color: var(--ink-2); margin-bottom: 0.25rem; }
+    .empty-hint { font-size: 0.85rem; }
+    .empty-hint code {
+      background: var(--brand-tint); color: var(--brand-dark);
+      padding: 1px 6px; border-radius: 4px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.82em;
+    }
+
+    /* Links */
+    a.link { color: var(--brand); text-decoration: none; font-weight: 500; }
+    a.link:hover { text-decoration: underline; }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    main > * { animation: fadeIn 0.3s ease-out; }
   </style>
 </head>
 <body>
-<nav>
-  <a href="/">Inbox</a><a href="/journal">Journal</a><a href="/recon">Reconciliation</a>
+<nav class="top">
+  <a href="/flow" class="brand">
+    <span class="brand-mark">F</span>
+    <span>FinLedger</span>
+  </a>
+  <div class="nav-links">
+    <a href="/flow" {% if active == "flow" %}class="active"{% endif %}>Flow</a>
+    <a href="/" {% if active == "inbox" %}class="active"{% endif %}>Inbox</a>
+    <a href="/journal" {% if active == "journal" %}class="active"{% endif %}>Journal</a>
+    <a href="/recon" {% if active == "recon" %}class="active"{% endif %}>Reconciliation</a>
+  </div>
 </nav>
 <main>
 {% block content %}{% endblock %}
