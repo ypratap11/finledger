@@ -2,6 +2,8 @@
 
 Thanks for your interest. FinLedger is Apache-2.0 licensed and open to contributions.
 
+**Author & maintainer:** [Pratap Yeragudipati](https://github.com/ypratap11). For architectural questions or non-trivial design proposals, open a GitHub Issue or Discussion and tag `@ypratap11`.
+
 ## Quick start
 
 Prerequisites: Docker, Python 3.12+, Node 20+.
@@ -96,3 +98,5 @@ Please **don't** open a public issue for security vulnerabilities. Email the mai
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0, same as the project.
+
+Copyright © 2026 Pratap Yeragudipati and FinLedger contributors.

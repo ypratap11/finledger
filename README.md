@@ -3,6 +3,8 @@
 [![CI](https://github.com/ypratap11/finledger/actions/workflows/ci.yml/badge.svg)](https://github.com/ypratap11/finledger/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
+**Created and maintained by [Pratap Yeragudipati](https://github.com/ypratap11).**
+
 An open-source SaaS finance pipeline. Stripe and Zuora webhooks enter through a Node/TS edge, land in a hash-chained source-event inbox, are posted by a Python engine into a double-entry ledger (enforced by Postgres triggers), and are reconciled against the source — all viewable on an HTMX dashboard. An ASC 606 revenue-recognition engine drains deferred revenue over time. A pluggable GL exporter writes CSV journal files today; SAP/Oracle/NetSuite connectors slot into the same seam later.
 
 ![Revenue waterfall](docs/images/revrec-waterfall.png)
