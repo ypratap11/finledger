@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Revenue{% endblock %}
+{% set active = "revrec" %}
+{% block content %}
+<div class="paper hero">
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-label">Backlog</div>
+      <div class="pillar-value">${{ "{:,.0f}".format(total / 100) }}</div>
+      <div class="pillar-sub">over next {{ horizon_months }} months</div>
+    </div>
+    <div class="pillar-rule"></div>
+    <div class="pillar">
+      <div class="pillar-label">Next 3 Months</div>
+      <div class="pillar-value money-recognized">${{ "{:,.0f}".format(buckets.next_3 / 100) }}</div>
+      <div class="pillar-sub">near-term recognition</div>
+    </div>
+    <div class="pillar-rule"></div>
+    <div class="pillar">
+      <div class="pillar-label">Beyond 12 Months</div>
+      <div class="pillar-value money-deferred">${{ "{:,.0f}".format(buckets.beyond / 100) }}</div>
+      <div class="pillar-sub">long-dated backlog</div>
+    </div>
+  </div>
+</div>
+
+<div class="fleuron">&#10086;</div>
+
+<h2 class="serif">Monthly Waterfall</h2>
+<div class="paper waterfall-wrap">
+<table class="waterfall">
+<thead>
+  <tr>
+    <th class="row-label"></th>
+    {% for k, _ in months.items() %}
+      {% if k != "beyond" %}<th>{{ k[:7] }}</th>{% endif %}
+    {% endfor %}
+    <th>Beyond</th>
+  </tr>
+</thead>
+<tbody>
+<tr class="total-row">
+  <td class="row-label serif">TOTAL</td>
+  {% for k, v in months.items() %}
+    {% if k != "beyond" %}
+      <td class="mono num">{% if v %}${{ "{:,.0f}".format(v / 100) }}{% else %}&mdash;{% endif %}</td>
+    {% endif %}
+  {% endfor %}
+  <td class="mono num">{% if months.get("beyond") %}${{ "{:,.0f}".format(months["beyond"] / 100) }}{% else %}&mdash;{% endif %}</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<style>
+main { max-width: 1440px; }
+.paper {
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: 1.75rem 2rem;
+  position: relative;
+  box-shadow: 0 1px 0 var(--rule), 0 12px 32px rgba(28, 25, 23, 0.04);
+}
+.paper::before {
+  content: ""; position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.6; pointer-events: none; border-radius: var(--radius);
+}
+.hero { margin-bottom: 2rem; }
+.pillars {
+  display: grid; grid-template-columns: 1fr 1px 1fr 1px 1fr;
+  align-items: center; gap: 2rem; position: relative; z-index: 1;
+}
+.pillar-rule { width: 1px; background: var(--rule); height: 64%; }
+.pillar-label {
+  font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 600; margin-bottom: 0.4rem;
+}
+.pillar-value {
+  font-family: var(--display); font-weight: 500; font-size: 3rem;
+  line-height: 1; color: var(--ink-serif);
+  font-variation-settings: "opsz" 48, "wght" 500;
+}
+.pillar-value.money-recognized { color: var(--money-recognized); }
+.pillar-value.money-deferred { color: var(--money-deferred); }
+.pillar-sub { color: var(--ink-3); font-size: 0.78rem; margin-top: 0.4rem; }
+h2.serif {
+  font-family: var(--display); font-weight: 500; font-variation-settings: "opsz" 18;
+  font-size: 1.35rem; color: var(--ink-serif); margin: 2rem 0 0.75rem;
+}
+.fleuron {
+  text-align: center; color: var(--rule-strong); font-size: 1.2rem;
+  margin: 2.5rem 0 1.5rem; letter-spacing: 0.5em;
+}
+.waterfall-wrap { padding: 0; overflow-x: auto; }
+table.waterfall { border-collapse: collapse; width: 100%; position: relative; z-index: 1; }
+table.waterfall thead th {
+  background: transparent; padding: 0.9rem 1rem; font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3);
+  font-weight: 600; border-bottom: 1px solid var(--rule);
+  text-align: right;
+}
+table.waterfall thead th.row-label { text-align: left; font-family: var(--display); font-style: italic; text-transform: none; letter-spacing: 0; }
+table.waterfall td {
+  padding: 0.8rem 1rem; border-bottom: 0.5px solid var(--rule);
+  text-align: right; color: var(--ink-serif);
+}
+table.waterfall td.num { font-variant-numeric: tabular-nums; }
+table.waterfall td.row-label.serif {
+  font-family: var(--display); font-weight: 500; text-align: left;
+  letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem;
+}
+table.waterfall tbody tr.total-row td { border-top: 3px double var(--rule-strong); }
+table.waterfall tbody tr:hover { background: rgba(250, 248, 243, 0.8); }
+.serif { font-family: var(--display); }
+.money-recognized { color: var(--money-recognized); }
+.money-deferred { color: var(--money-deferred); }
+</style>
+{% endblock %}
