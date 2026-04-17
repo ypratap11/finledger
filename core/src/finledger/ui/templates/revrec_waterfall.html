@@ -70,23 +70,51 @@
 </div>
 
 <style>
-.waterfall-tbl { min-width: 100%; font-size: 0.85rem; }
-.waterfall-tbl th { background: var(--bg); padding: 0.55rem 0.9rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--ink-3); border-bottom: 1px solid var(--line); }
-.waterfall-tbl td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+.waterfall-tbl { border-collapse: separate; border-spacing: 0; font-size: 0.85rem; white-space: nowrap; }
+.waterfall-tbl th, .waterfall-tbl td {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.waterfall-tbl th { background: var(--bg); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--ink-3); }
+.waterfall-tbl td { color: var(--ink-2); }
 .waterfall-tbl th.num, .waterfall-tbl td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.8rem;
+  min-width: 88px;
 }
+
+/* Sticky Contract column (first) */
+.waterfall-tbl th:first-child, .waterfall-tbl td:first-child {
+  position: sticky; left: 0; z-index: 2;
+  box-shadow: 1px 0 0 var(--line);
+  min-width: 200px; max-width: 260px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.waterfall-tbl th:first-child { z-index: 3; background: var(--bg); }
+
+/* Sticky Total column (last) */
+.waterfall-tbl th:last-child, .waterfall-tbl td:last-child {
+  position: sticky; right: 0; z-index: 2;
+  box-shadow: -1px 0 0 var(--line);
+  min-width: 110px;
+}
+.waterfall-tbl th:last-child { z-index: 3; background: var(--bg); }
+
+/* Total row — highlight wins over sticky backgrounds */
 .waterfall-tbl tr.total-row td {
   background: var(--brand-tint);
   color: var(--brand-dark);
   border-top: 1px solid var(--line);
   border-bottom: 2px solid var(--line);
+  font-weight: 600;
 }
-.waterfall-tbl tbody tr:nth-child(even):not(.total-row) { background: rgba(248, 250, 252, 0.4); }
-.waterfall-tbl tbody tr:hover:not(.total-row) { background: var(--bg); }
+
+/* Zebra + hover — preserve sticky-column background */
+.waterfall-tbl tbody tr:nth-child(even):not(.total-row) td { background: #fafbfc; }
+.waterfall-tbl tbody tr:hover:not(.total-row) td { background: var(--bg); }
 .waterfall-tbl .dim { color: #cbd5e1; }
 </style>
 {% endblock %}
