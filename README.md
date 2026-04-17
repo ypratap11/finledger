@@ -1,8 +1,23 @@
 # FinLedger
 
-A working reference implementation of a SaaS finance system. Stripe and Zuora webhooks enter through a Node/TS edge, land in a hash-chained source-event inbox, are posted by a Python engine into a double-entry ledger (enforced by DB triggers), and are reconciled against Stripe — all viewable on an HTMX dashboard. A pluggable GL exporter writes CSV journal files now; SAP/Oracle/NetSuite connectors slot into the same seam later.
+[![CI](https://github.com/ypratap11/finledger/actions/workflows/ci.yml/badge.svg)](https://github.com/ypratap11/finledger/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-See `docs/superpowers/specs/2026-04-14-finledger-design.md` for the full design, and `docs/superpowers/plans/2026-04-14-finledger-m1.md` for the M1 build plan.
+An open-source SaaS finance pipeline. Stripe and Zuora webhooks enter through a Node/TS edge, land in a hash-chained source-event inbox, are posted by a Python engine into a double-entry ledger (enforced by Postgres triggers), and are reconciled against the source — all viewable on an HTMX dashboard. An ASC 606 revenue-recognition engine drains deferred revenue over time. A pluggable GL exporter writes CSV journal files today; SAP/Oracle/NetSuite connectors slot into the same seam later.
+
+![Revenue waterfall](docs/images/revrec-waterfall.png)
+
+See `docs/superpowers/specs/2026-04-14-finledger-design.md` for the full design, and `docs/superpowers/plans/` for the implementation plans (M1, M2a-1).
+
+## One-command quickstart
+
+```bash
+git clone https://github.com/ypratap11/finledger.git
+cd finledger
+docker compose -f docker-compose.full.yml up --build
+```
+
+Then open **http://localhost:8003/** — postgres, migrations, demo seed data, the Python UI, and the Node ingest-edge all come up together.
 
 ## What M1 demonstrates
 
@@ -58,6 +73,14 @@ Visit `http://localhost:8000/` for the admin dashboard.
 ## Layout
 
     ingest-edge/     Node/TS Fastify webhook edge (Stripe + Zuora)
-    core/            Python FastAPI + posting engine + recon + UI + GL export
-    docs/            specs + plans + task RFCs
+    core/            Python FastAPI + posting engine + recon + revrec + UI + GL export
+    docs/            specs + plans + task RFCs + screenshots
     fixtures/        sample webhook payloads for tests
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for quickstart, test instructions, code style, and how to file issues / submit PRs. Good-first-issue candidates: additional source adapters (Chargebee, Paddle, Maxio), additional GL exporters (NetSuite, SAP, Oracle), accessibility audit.
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE).
