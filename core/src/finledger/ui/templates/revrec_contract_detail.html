@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Contract {{ contract.external_ref }}{% endblock %}
+{% set active = "revrec" %}
+{% block content %}
+<p><a href="/revrec/contracts" class="link">&larr; Contracts</a></p>
+<h1 class="hd-serif">{{ contract.external_ref }}</h1>
+<p class="smallcaps">
+  <span class="pill pill-ok">{{ contract.status }}</span>
+  &nbsp;·&nbsp; effective {{ contract.effective_date }}
+  {% if contract.customer_id %}&nbsp;·&nbsp; customer {{ contract.customer_id }}{% endif %}
+  &nbsp;·&nbsp; <span class="mono">${{ "{:,.0f}".format(contract.total_amount_cents / 100) }} {{ contract.currency }}</span>
+</p>
+
+<div class="fleuron">&#167;</div>
+
+<h2 class="serif">Performance Obligations</h2>
+{% for v in obligations %}
+  {% set o = v.obligation %}
+  <div class="paper obligation">
+    <div class="obl-head">
+      <div class="obl-desc">{{ o.description }}</div>
+      <div class="smallcaps">
+        {{ o.pattern }}
+        &nbsp;·&nbsp; <span class="mono">{{ o.start_date }}{% if o.end_date %} → {{ o.end_date }}{% endif %}</span>
+      </div>
+    </div>
+    <div class="obl-bar">
+      <div class="obl-bar-fill" style="width: {{ v.pct }}%"></div>
+    </div>
+    <div class="obl-stats">
+      <span class="money-recognized mono">${{ "{:,.0f}".format(v.recognized / 100) }} recognized</span>
+      <span class="money-deferred mono">${{ "{:,.0f}".format(v.deferred / 100) }} deferred</span>
+      <span class="mono" style="color: var(--ink-3)">{{ v.pct }}%</span>
+    </div>
+  </div>
+{% endfor %}
+
+<style>
+.hd-serif { font-family: var(--display); font-variation-settings: "opsz" 72, "wght" 500; font-size: 2.8rem; letter-spacing: -0.02em; color: var(--ink-serif); margin: 0 0 0.4rem; }
+.smallcaps { font-size: 0.8rem; font-feature-settings: "smcp" 1; letter-spacing: 0.06em; color: var(--ink-3); }
+.obligation { margin-bottom: 1rem; padding: 1.2rem 1.5rem; }
+.obl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+.obl-desc { font-family: var(--display); font-size: 1.1rem; color: var(--ink-serif); }
+.obl-bar {
+  position: relative; height: 10px; background: var(--money-deferred); opacity: 0.2;
+  border-radius: 2px; overflow: hidden; z-index: 1;
+}
+.obl-bar-fill {
+  position: absolute; inset: 0; background: var(--money-recognized);
+  width: 0; transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.obl-stats { display: flex; gap: 1.5rem; margin-top: 0.5rem; font-size: 0.85rem; position: relative; z-index: 1; }
+</style>
+{% endblock %}

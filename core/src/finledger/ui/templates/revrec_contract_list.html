@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Contracts{% endblock %}
+{% set active = "revrec" %}
+{% block content %}
+<h1 class="hd-serif">Contracts</h1>
+<p class="subtitle">Active revenue contracts, newest first.</p>
+
+<div class="paper contracts-table-wrap">
+{% if contracts %}
+<table class="waterfall">
+<thead>
+  <tr><th class="row-label">Reference</th><th>Customer</th><th>Effective</th><th>Status</th><th>Total</th><th></th></tr>
+</thead>
+<tbody>
+{% for c in contracts %}
+<tr>
+  <td class="row-label serif-ref">{{ c.external_ref }}</td>
+  <td>{{ c.customer_id or "—" }}</td>
+  <td class="mono">{{ c.effective_date }}</td>
+  <td><span class="pill pill-ok">{{ c.status }}</span></td>
+  <td class="mono num">${{ "{:,.0f}".format(c.total_amount_cents / 100) }} {{ c.currency }}</td>
+  <td class="drill"><a href="/revrec/contracts/{{ c.id }}" class="arrow-link">&rarr;</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1F4DC;</div>
+  <div class="empty-title">No contracts yet</div>
+  <div class="empty-hint">Contracts auto-create from Zuora invoices with <code>service_period_start/end</code> metadata, or via <code>POST /revrec/contracts</code>.</div>
+</div>
+{% endif %}
+</div>
+
+<style>
+.hd-serif {
+  font-family: var(--display); font-variation-settings: "opsz" 72, "wght" 500;
+  font-size: 2.4rem; letter-spacing: -0.02em; color: var(--ink-serif);
+  margin: 0 0 0.25rem;
+}
+.contracts-table-wrap { padding: 0; }
+.serif-ref { font-family: var(--display); font-style: italic; font-size: 1.05rem; }
+.arrow-link { color: var(--ink-3); font-size: 1.1rem; text-decoration: none; transition: color 0.15s, transform 0.15s; display: inline-block; }
+tbody tr:hover .arrow-link { color: var(--brand); transform: translateX(3px); }
+td.drill { width: 40px; text-align: right; }
+td.num { font-variant-numeric: tabular-nums; }
+</style>
+{% endblock %}

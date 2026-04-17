@@ -23,6 +23,11 @@ async def process_one(session: AsyncSession, event: SourceEvent) -> bool:
             memo=f"{event.source}:{event.event_type}:{event.external_id}",
             source_event_id=event.id,
         )
+        # Convention-based revrec genesis (M2a-1): after a successful zuora invoice
+        # posting, auto-create contract + obligation if metadata is present.
+        if event.source == "zuora" and event.event_type == "invoice.posted":
+            from finledger.revrec.genesis import from_zuora_invoice
+            await from_zuora_invoice(session, event.payload, event.id)
         event.processed_at = datetime.now(timezone.utc)
         event.processing_error = None
         await session.flush()
