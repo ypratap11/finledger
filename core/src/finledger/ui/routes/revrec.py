@@ -239,6 +239,10 @@ async def waterfall(
         .where(PerformanceObligation.contract.has(status="active"))
     )).scalars().all()
 
+    contract_refs = dict((await session.execute(
+        select(Contract.id, Contract.external_ref)
+    )).all())
+
     already_rows = (await session.execute(
         select(
             RecognitionEvent.obligation_id,
@@ -249,7 +253,7 @@ async def waterfall(
     already_map = {oid: (int(cents), through) for oid, cents, through in already_rows}
 
     agg: dict = {}
-    per_contract: dict = {}
+    per_contract: dict = {}  # contract_id -> {month_key_str: cents}
     for o in obligations:
         cents, through = already_map.get(o.id, (0, None))
         m = project_obligation_by_month(
@@ -260,14 +264,30 @@ async def waterfall(
         )
         for k, v in m.items():
             agg[k] = agg.get(k, 0) + v
-            per_contract.setdefault(str(o.contract_id), {})[str(k)] = \
-                per_contract.setdefault(str(o.contract_id), {}).get(str(k), 0) + v
+            per_contract.setdefault(o.contract_id, {})[str(k)] = \
+                per_contract.setdefault(o.contract_id, {}).get(str(k), 0) + v
 
     total = sum(agg.values())
-    month_keys = sorted(k for k in agg if k != BEYOND_KEY)
-    n3 = sum(agg[k] for k in month_keys[:3])
-    n12 = sum(agg[k] for k in month_keys[3:12])
-    beyond = agg.get(BEYOND_KEY, 0) + sum(agg[k] for k in month_keys[12:])
+    month_keys_sorted = sorted(k for k in agg if k != BEYOND_KEY)
+    n3 = sum(agg[k] for k in month_keys_sorted[:3])
+    n12 = sum(agg[k] for k in month_keys_sorted[3:12])
+    beyond = agg.get(BEYOND_KEY, 0) + sum(agg[k] for k in month_keys_sorted[12:])
+
+    # Stable ordered column list: months asc, then beyond
+    ordered_columns = [str(k) for k in month_keys_sorted] + [BEYOND_KEY]
+    total_row = [agg.get(k, 0) for k in month_keys_sorted] + [agg.get(BEYOND_KEY, 0)]
+
+    # Contract rows, sorted by total descending
+    contract_rows = []
+    for cid, months_map in per_contract.items():
+        values = [months_map.get(str(k), 0) for k in month_keys_sorted] + [months_map.get(BEYOND_KEY, 0)]
+        contract_rows.append({
+            "external_ref": contract_refs.get(cid, str(cid)),
+            "contract_id": str(cid),
+            "total": sum(values),
+            "values": values,
+        })
+    contract_rows.sort(key=lambda r: -r["total"])
 
     months_out = {str(k): v for k, v in agg.items()}
     data = {
@@ -280,8 +300,12 @@ async def waterfall(
     return request.app.state.templates.TemplateResponse(
         request=request, name="revrec_waterfall.html",
         context={
-            "total": total, "months": months_out, "buckets": data["buckets"],
-            "per_contract": per_contract, "horizon_months": months,
+            "total": total,
+            "buckets": data["buckets"],
+            "horizon_months": months,
+            "columns": ordered_columns,
+            "total_row": total_row,
+            "contract_rows": contract_rows,
         },
     )
 

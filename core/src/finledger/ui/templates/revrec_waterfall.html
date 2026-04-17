@@ -2,118 +2,91 @@
 {% block title %}Revenue{% endblock %}
 {% set active = "revrec" %}
 {% block content %}
-<div class="paper hero">
-  <div class="pillars">
-    <div class="pillar">
-      <div class="pillar-label">Backlog</div>
-      <div class="pillar-value">${{ "{:,.0f}".format(total / 100) }}</div>
-      <div class="pillar-sub">over next {{ horizon_months }} months</div>
-    </div>
-    <div class="pillar-rule"></div>
-    <div class="pillar">
-      <div class="pillar-label">Next 3 Months</div>
-      <div class="pillar-value money-recognized">${{ "{:,.0f}".format(buckets.next_3 / 100) }}</div>
-      <div class="pillar-sub">near-term recognition</div>
-    </div>
-    <div class="pillar-rule"></div>
-    <div class="pillar">
-      <div class="pillar-label">Beyond 12 Months</div>
-      <div class="pillar-value money-deferred">${{ "{:,.0f}".format(buckets.beyond / 100) }}</div>
-      <div class="pillar-sub">long-dated backlog</div>
-    </div>
+<h1>Revenue Recognition</h1>
+<p class="subtitle">ASC 606 backlog projected over the next {{ horizon_months }} months.</p>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Backlog</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(total / 100) }}</div>
+    <div class="kpi-sub">total unrecognized</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Next 3 Months</div>
+    <div class="kpi-value ok">${{ "{:,.0f}".format(buckets.next_3 / 100) }}</div>
+    <div class="kpi-sub">{% if total %}{{ (100 * buckets.next_3 / total) | round | int }}% of backlog{% else %}—{% endif %}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Months 4–12</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(buckets.months_4_to_12 / 100) }}</div>
+    <div class="kpi-sub">mid-term</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Beyond 12 Months</div>
+    <div class="kpi-value warn">${{ "{:,.0f}".format(buckets.beyond / 100) }}</div>
+    <div class="kpi-sub">long-dated</div>
   </div>
 </div>
 
-<div class="fleuron">&#10086;</div>
-
-<h2 class="serif">Monthly Waterfall</h2>
-<div class="paper waterfall-wrap">
-<table class="waterfall">
+<h2>Monthly Waterfall</h2>
+<div class="card" style="overflow-x: auto;">
+{% if contract_rows %}
+<table class="waterfall-tbl">
 <thead>
   <tr>
-    <th class="row-label"></th>
-    {% for k, _ in months.items() %}
-      {% if k != "beyond" %}<th>{{ k[:7] }}</th>{% endif %}
+    <th style="text-align: left; min-width: 180px;">Contract</th>
+    {% for col in columns %}
+      {% if col == "beyond" %}<th class="num">Beyond</th>{% else %}<th class="num">{{ col[:7] }}</th>{% endif %}
     {% endfor %}
-    <th>Beyond</th>
+    <th class="num" style="border-left: 2px solid var(--line)">Total</th>
   </tr>
 </thead>
 <tbody>
 <tr class="total-row">
-  <td class="row-label serif">TOTAL</td>
-  {% for k, v in months.items() %}
-    {% if k != "beyond" %}
-      <td class="mono num">{% if v %}${{ "{:,.0f}".format(v / 100) }}{% else %}&mdash;{% endif %}</td>
-    {% endif %}
+  <td><strong>TOTAL</strong></td>
+  {% for v in total_row %}
+    <td class="num">{% if v %}${{ "{:,.0f}".format(v / 100) }}{% else %}<span class="dim">—</span>{% endif %}</td>
   {% endfor %}
-  <td class="mono num">{% if months.get("beyond") %}${{ "{:,.0f}".format(months["beyond"] / 100) }}{% else %}&mdash;{% endif %}</td>
+  <td class="num" style="border-left: 2px solid var(--line)"><strong>${{ "{:,.0f}".format(total / 100) }}</strong></td>
 </tr>
+{% for row in contract_rows %}
+<tr>
+  <td><a href="/revrec/contracts/{{ row.contract_id }}" class="link mono">{{ row.external_ref }}</a></td>
+  {% for v in row.values %}
+    <td class="num">{% if v %}${{ "{:,.0f}".format(v / 100) }}{% else %}<span class="dim">—</span>{% endif %}</td>
+  {% endfor %}
+  <td class="num" style="border-left: 2px solid var(--line)">${{ "{:,.0f}".format(row.total / 100) }}</td>
+</tr>
+{% endfor %}
 </tbody>
 </table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1F4C8;</div>
+  <div class="empty-title">No backlog yet</div>
+  <div class="empty-hint">Contracts auto-create from Zuora invoices with <code>service_period_start/end</code> metadata, or via <code>POST /revrec/contracts</code>.</div>
+</div>
+{% endif %}
 </div>
 
 <style>
-main { max-width: 1440px; }
-.paper {
-  background: var(--paper);
-  border-radius: var(--radius);
-  padding: 1.75rem 2rem;
-  position: relative;
-  box-shadow: 0 1px 0 var(--rule), 0 12px 32px rgba(28, 25, 23, 0.04);
-}
-.paper::before {
-  content: ""; position: absolute; inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.6; pointer-events: none; border-radius: var(--radius);
-}
-.hero { margin-bottom: 2rem; }
-.pillars {
-  display: grid; grid-template-columns: 1fr 1px 1fr 1px 1fr;
-  align-items: center; gap: 2rem; position: relative; z-index: 1;
-}
-.pillar-rule { width: 1px; background: var(--rule); height: 64%; }
-.pillar-label {
-  font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--ink-3); font-weight: 600; margin-bottom: 0.4rem;
-}
-.pillar-value {
-  font-family: var(--display); font-weight: 500; font-size: 3rem;
-  line-height: 1; color: var(--ink-serif);
-  font-variation-settings: "opsz" 48, "wght" 500;
-}
-.pillar-value.money-recognized { color: var(--money-recognized); }
-.pillar-value.money-deferred { color: var(--money-deferred); }
-.pillar-sub { color: var(--ink-3); font-size: 0.78rem; margin-top: 0.4rem; }
-h2.serif {
-  font-family: var(--display); font-weight: 500; font-variation-settings: "opsz" 18;
-  font-size: 1.35rem; color: var(--ink-serif); margin: 2rem 0 0.75rem;
-}
-.fleuron {
-  text-align: center; color: var(--rule-strong); font-size: 1.2rem;
-  margin: 2.5rem 0 1.5rem; letter-spacing: 0.5em;
-}
-.waterfall-wrap { padding: 0; overflow-x: auto; }
-table.waterfall { border-collapse: collapse; width: 100%; position: relative; z-index: 1; }
-table.waterfall thead th {
-  background: transparent; padding: 0.9rem 1rem; font-size: 0.7rem;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3);
-  font-weight: 600; border-bottom: 1px solid var(--rule);
+.waterfall-tbl { min-width: 100%; font-size: 0.85rem; }
+.waterfall-tbl th { background: var(--bg); padding: 0.55rem 0.9rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--ink-3); border-bottom: 1px solid var(--line); }
+.waterfall-tbl td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+.waterfall-tbl th.num, .waterfall-tbl td.num {
   text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.8rem;
 }
-table.waterfall thead th.row-label { text-align: left; font-family: var(--display); font-style: italic; text-transform: none; letter-spacing: 0; }
-table.waterfall td {
-  padding: 0.8rem 1rem; border-bottom: 0.5px solid var(--rule);
-  text-align: right; color: var(--ink-serif);
+.waterfall-tbl tr.total-row td {
+  background: var(--brand-tint);
+  color: var(--brand-dark);
+  border-top: 1px solid var(--line);
+  border-bottom: 2px solid var(--line);
 }
-table.waterfall td.num { font-variant-numeric: tabular-nums; }
-table.waterfall td.row-label.serif {
-  font-family: var(--display); font-weight: 500; text-align: left;
-  letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem;
-}
-table.waterfall tbody tr.total-row td { border-top: 3px double var(--rule-strong); }
-table.waterfall tbody tr:hover { background: rgba(250, 248, 243, 0.8); }
-.serif { font-family: var(--display); }
-.money-recognized { color: var(--money-recognized); }
-.money-deferred { color: var(--money-deferred); }
+.waterfall-tbl tbody tr:nth-child(even):not(.total-row) { background: rgba(248, 250, 252, 0.4); }
+.waterfall-tbl tbody tr:hover:not(.total-row) { background: var(--bg); }
+.waterfall-tbl .dim { color: #cbd5e1; }
 </style>
 {% endblock %}
