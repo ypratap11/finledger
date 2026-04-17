@@ -87,6 +87,7 @@
 
     /* Main */
     main { padding: 2rem 2rem 4rem; max-width: 1280px; margin: 0 auto; }
+    main.wide { max-width: 1680px; }
     h1 {
       font-size: 1.6rem;
       font-weight: 700;
@@ -230,7 +231,7 @@
     <a href="/recon" {% if active == "recon" %}class="active"{% endif %}>Reconciliation</a>
   </div>
 </nav>
-<main>
+<main class="{% block main_class %}{% endblock %}">
 {% block content %}{% endblock %}
 </main>
 </body>
