@@ -284,3 +284,9 @@ async def waterfall(
             "per_contract": per_contract, "horizon_months": months,
         },
     )
+
+
+@router.get("")
+@router.get("/")
+async def revrec_index(request: Request, session: AsyncSession = Depends(get_async_session)):
+    return await waterfall(request=request, months=12, session=session)

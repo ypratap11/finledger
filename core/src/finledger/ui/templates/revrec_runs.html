@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Runs{% endblock %}
+{% set active = "revrec" %}
+{% block content %}
+<h1 class="hd-serif">Recognition Log</h1>
+<p class="subtitle">Chronological record of recognition runs.</p>
+
+{% if runs %}
+<div class="log">
+{% for r in runs %}
+  <div class="log-entry">
+    <div class="log-date serif">{{ r.run_through_date }}</div>
+    <div class="log-body">
+      <div class="log-amount mono">${{ "{:,.0f}".format(r.total_recognized_cents / 100) }}</div>
+      <div class="log-meta">{{ r.obligations_processed }} obligation{{ "s" if r.obligations_processed != 1 }} · started {{ r.started_at.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+      {% if r.journal_entry_id %}
+        <a class="link" href="/journal/{{ r.journal_entry_id }}">journal entry &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% else %}
+<div class="paper"><div class="empty">
+  <div class="empty-icon">&#x1F4D1;</div>
+  <div class="empty-title">No recognition runs yet</div>
+  <div class="empty-hint">Trigger via <code>POST /revrec/run</code> or wait for the scheduled daily job.</div>
+</div></div>
+{% endif %}
+
+<style>
+.hd-serif { font-family: var(--display); font-variation-settings: "opsz" 72, "wght" 500; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--ink-serif); margin: 0 0 0.25rem; }
+.log { display: flex; flex-direction: column; gap: 0; }
+.log-entry { display: grid; grid-template-columns: 160px 1fr; gap: 2rem; padding: 1.1rem 0; border-top: 1px solid var(--rule); align-items: baseline; }
+.log-entry:last-child { border-bottom: 1px solid var(--rule); }
+.log-date { font-family: var(--display); font-size: 1.25rem; font-variation-settings: "opsz" 18; color: var(--ink-serif); letter-spacing: -0.01em; }
+.log-body { display: flex; flex-direction: column; gap: 0.2rem; }
+.log-amount { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; color: var(--money-recognized); font-variant-numeric: tabular-nums; }
+.log-meta { color: var(--ink-3); font-size: 0.85rem; }
+</style>
+{% endblock %}
