@@ -102,3 +102,36 @@ async def test_run_recognition_endpoint(async_client):
     body = r2.json()
     assert body["obligations_processed"] == 1
     assert body["total_recognized_cents"] == 10000
+
+
+@pytest.mark.asyncio
+async def test_list_contracts_empty(async_client):
+    r = await async_client.get("/revrec/contracts", headers={"accept": "application/json"})
+    assert r.status_code == 200
+    assert r.json() == {"contracts": []}
+
+
+@pytest.mark.asyncio
+async def test_list_runs_empty(async_client):
+    r = await async_client.get("/revrec/runs", headers={"accept": "application/json"})
+    assert r.status_code == 200
+    assert r.json() == {"runs": []}
+
+
+@pytest.mark.asyncio
+async def test_waterfall_json_has_months_and_total(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "WF-TEST-1", "effective_date": "2026-05-01",
+        "total_amount_cents": 31000,
+    })
+    cid = r.json()["id"]
+    await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "Sub", "pattern": "ratable_daily",
+        "start_date": "2026-05-01", "end_date": "2026-05-31",
+        "total_amount_cents": 31000,
+    })
+    r2 = await async_client.get("/revrec/waterfall?months=12", headers={"accept": "application/json"})
+    assert r2.status_code == 200
+    body = r2.json()
+    assert "months" in body and "total" in body
+    assert body["total"] == 31000
