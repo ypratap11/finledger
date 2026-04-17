@@ -51,3 +51,35 @@ async def test_create_contract_is_idempotent_on_external_ref(async_client):
     r1 = await async_client.post("/revrec/contracts", json=body)
     r2 = await async_client.post("/revrec/contracts", json=body)
     assert r1.json()["id"] == r2.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_create_obligation_on_contract(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "OBL-TEST-1", "effective_date": "2026-05-01",
+        "total_amount_cents": 12000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "Subscription",
+        "pattern": "ratable_daily",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-31",
+        "total_amount_cents": 12000,
+    })
+    assert r2.status_code == 201
+    assert "id" in r2.json()
+
+
+@pytest.mark.asyncio
+async def test_create_obligation_rejects_ratable_without_end_date(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "OBL-TEST-2", "effective_date": "2026-05-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "bad", "pattern": "ratable_daily",
+        "start_date": "2026-05-01", "total_amount_cents": 1000,
+    })
+    assert r2.status_code == 422
