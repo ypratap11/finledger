@@ -83,3 +83,22 @@ async def test_create_obligation_rejects_ratable_without_end_date(async_client):
         "start_date": "2026-05-01", "total_amount_cents": 1000,
     })
     assert r2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_run_recognition_endpoint(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "RUN-TEST-1", "effective_date": "2026-05-01",
+        "total_amount_cents": 31000,
+    })
+    cid = r.json()["id"]
+    await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "Sub", "pattern": "ratable_daily",
+        "start_date": "2026-05-01", "end_date": "2026-05-31",
+        "total_amount_cents": 31000,
+    })
+    r2 = await async_client.post("/revrec/run", json={"through_date": "2026-05-10"})
+    assert r2.status_code == 200, r2.text
+    body = r2.json()
+    assert body["obligations_processed"] == 1
+    assert body["total_recognized_cents"] == 10000

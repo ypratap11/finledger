@@ -107,3 +107,29 @@ async def create_obligation(
     session.add(obl)
     await session.commit()
     return ObligationOut(id=obl.id)
+
+
+class RunIn(BaseModel):
+    through_date: date
+
+
+class RunOut(BaseModel):
+    id: UUID
+    run_through_date: date
+    obligations_processed: int
+    total_recognized_cents: int
+    journal_entry_id: UUID | None
+
+
+@router.post("/run", response_model=RunOut)
+async def trigger_run(body: RunIn, session: AsyncSession = Depends(get_async_session)):
+    from finledger.revrec.engine import run_recognition
+    run = await run_recognition(session, through_date=body.through_date)
+    await session.commit()
+    return RunOut(
+        id=run.id,
+        run_through_date=run.run_through_date,
+        obligations_processed=run.obligations_processed,
+        total_recognized_cents=run.total_recognized_cents,
+        journal_entry_id=run.journal_entry_id,
+    )
