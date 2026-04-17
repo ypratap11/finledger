@@ -6,11 +6,25 @@ Shows what the /revrec pages look like with realistic numbers.
 import asyncio
 import uuid
 from datetime import date, datetime, timezone, timedelta
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from finledger.models.revrec import Contract, PerformanceObligation
 from finledger.revrec.engine import run_recognition
 
-ASYNC_URL = "postgresql+asyncpg://finledger:finledger@localhost:5432/finledger"
+import os
+
+
+def _async_url() -> str:
+    url = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://finledger:finledger@localhost:5432/finledger",
+    )
+    return url.replace("postgresql+psycopg://", "postgresql+asyncpg://").replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
+
+
+ASYNC_URL = _async_url()
 
 
 async def main() -> None:
@@ -49,6 +63,17 @@ async def main() -> None:
     ]
 
     async with S() as s:
+        existing = {
+            ref for (ref,) in (
+                await s.execute(select(Contract.external_ref).where(
+                    Contract.external_ref.in_([c["ref"] for c in contracts])
+                ))
+            ).all()
+        }
+        if existing:
+            print(f"revrec demo already seeded ({len(existing)}/{len(contracts)} contracts exist) — skipping")
+            await engine.dispose()
+            return
         for c in contracts:
             contract = Contract(
                 id=uuid.uuid4(),

@@ -21,8 +21,8 @@ services:
 
   core:
     build:
-      context: ./core
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: core/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy

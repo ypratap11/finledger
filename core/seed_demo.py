@@ -3,15 +3,19 @@
 Uses psycopg throughout (sync) to avoid Windows asyncpg networking issues.
 Run after `alembic upgrade head`.
 """
-import json
-import uuid
 import hashlib
+import json
+import os
+import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import psycopg
 
-DB_URL = "postgresql://finledger:finledger@localhost:5432/finledger"
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://finledger:finledger@localhost:5432/finledger",
+).replace("postgresql+psycopg://", "postgresql://").replace("postgresql+asyncpg://", "postgresql://")
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 CHART = [
@@ -140,7 +144,16 @@ def main():
     zuora = json.loads((FIXTURES / "zuora_invoice_posted.json").read_text())
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            seed_accounts(cur)
+            seed_accounts(cur)  # already idempotent via ON CONFLICT
+            cur.execute(
+                "SELECT count(*) FROM inbox.source_events "
+                "WHERE external_id IN (%s, %s)",
+                (stripe["id"], zuora["invoice"]["id"]),
+            )
+            if cur.fetchone()[0] > 0:
+                conn.commit()
+                print("demo already seeded (events exist) — skipping")
+                return
             e1 = insert_inbox(cur, "stripe", "charge.succeeded", stripe["id"], stripe)
             e2 = insert_inbox(cur, "zuora", "invoice.posted", zuora["invoice"]["id"], zuora)
             post_stripe_charge(cur, e1, stripe)
