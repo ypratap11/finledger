@@ -83,3 +83,26 @@ def test_ratable_single_day_period():
     s = snap(5000, date(2026, 5, 1), date(2026, 5, 1))
     d = compute_recognition(s, 0, None, date(2026, 5, 1))
     assert d.recognized_cents == 5000
+
+
+def test_point_in_time_before_start():
+    s = snap(50000, date(2026, 5, 15), None, pattern="point_in_time")
+    assert compute_recognition(s, 0, None, date(2026, 5, 14)) is None
+
+
+def test_point_in_time_on_start_recognizes_full_amount():
+    s = snap(50000, date(2026, 5, 15), None, pattern="point_in_time")
+    d = compute_recognition(s, 0, None, date(2026, 5, 15))
+    assert d.recognized_cents == 50000
+    assert d.recognized_through == date(2026, 5, 15)
+
+
+def test_point_in_time_already_recognized_returns_none():
+    s = snap(50000, date(2026, 5, 15), None, pattern="point_in_time")
+    assert compute_recognition(s, 50000, date(2026, 5, 15), date(2026, 5, 20)) is None
+
+
+def test_unknown_pattern_raises():
+    s = snap(1000, date(2026, 5, 1), date(2026, 5, 31), pattern="bogus")
+    with pytest.raises(ValueError):
+        compute_recognition(s, 0, None, date(2026, 5, 10))
