@@ -1,11 +1,11 @@
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timezone
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from finledger.ledger.post import LineSpec, post_entry
 from finledger.models.revrec import (
-    PerformanceObligation, RecognitionEvent, RecognitionRun,
+    PerformanceObligation, RecognitionEvent, RecognitionRun, UsageEvent,
 )
 from finledger.revrec.compute import ObligationSnapshot, compute_recognition
 
@@ -29,6 +29,20 @@ async def _obligation_state(session: AsyncSession, obligation_id: uuid.UUID) -> 
         ).where(RecognitionEvent.obligation_id == obligation_id)
     )).one()
     return int(row[0]), row[1]
+
+
+async def _pending_usage_for(
+    session: AsyncSession, obligation_id: uuid.UUID
+) -> tuple[int, list[uuid.UUID]]:
+    """Return (sum of pending units, list of event ids) for an obligation."""
+    rows = (await session.execute(
+        select(UsageEvent.id, UsageEvent.units)
+        .where(UsageEvent.obligation_id == obligation_id)
+        .where(UsageEvent.recognized_at.is_(None))
+    )).all()
+    total_units = sum(int(units) for _id, units in rows)
+    ids = [rid for rid, _ in rows]
+    return total_units, ids
 
 
 async def run_recognition(session: AsyncSession, *, through_date: date) -> RecognitionRun:
@@ -58,17 +72,30 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
     events: list[RecognitionEvent] = []
     obligations_processed = 0
     total = 0
+    picked_up_event_ids: list[uuid.UUID] = []
 
     for o in obligations:
         already_cents, already_through = await _obligation_state(session, o.id)
+        unprocessed_units = 0
+        obl_event_ids: list[uuid.UUID] = []
+        if o.pattern == "consumption":
+            unprocessed_units, obl_event_ids = await _pending_usage_for(session, o.id)
         snap = ObligationSnapshot(
             total_amount_cents=o.total_amount_cents,
             start_date=o.start_date,
             end_date=o.end_date,
             pattern=o.pattern,
+            units_total=o.units_total,
         )
-        delta = compute_recognition(snap, already_cents, already_through, through_date)
+        delta = compute_recognition(
+            snap, already_cents, already_through, through_date,
+            unprocessed_units=unprocessed_units,
+        )
         if delta is None:
+            # Even when compute returns None for consumption (e.g. already at cap),
+            # still mark pending events processed so they aren't re-queued forever.
+            if o.pattern == "consumption" and obl_event_ids:
+                picked_up_event_ids.extend(obl_event_ids)
             continue
         lines_agg[(o.deferred_revenue_account_code, "debit")] += delta.recognized_cents
         lines_agg[(o.revenue_account_code, "credit")] += delta.recognized_cents
@@ -81,6 +108,8 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
         ))
         obligations_processed += 1
         total += delta.recognized_cents
+        if o.pattern == "consumption":
+            picked_up_event_ids.extend(obl_event_ids)
 
     if obligations_processed > 0:
         lines = [
@@ -95,6 +124,13 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
         run.journal_entry_id = entry.id
         for e in events:
             session.add(e)
+
+    if picked_up_event_ids:
+        await session.execute(
+            update(UsageEvent)
+            .where(UsageEvent.id.in_(picked_up_event_ids))
+            .values(recognized_at=datetime.now(timezone.utc), recognition_run_id=run.id)
+        )
 
     run.obligations_processed = obligations_processed
     run.total_recognized_cents = total
