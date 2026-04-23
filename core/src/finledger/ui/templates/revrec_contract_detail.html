@@ -30,6 +30,43 @@
       <span><span class="dot dot-warn"></span> <strong class="mono">${{ "{:,.2f}".format(v.deferred / 100) }}</strong> deferred</span>
       <span style="margin-left: auto; color: var(--ink-3);" class="mono">{{ v.pct }}%</span>
     </div>
+    {% if o.pattern == "consumption" %}
+      <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem;">
+          <div style="font-size: 0.82rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;">
+            Consumption
+          </div>
+          <div style="font-size: 0.85rem; color: var(--ink-3);" class="mono">
+            {{ "{:,}".format(v.units_consumed) }} / {{ "{:,}".format(o.units_total) }} {{ o.unit_label or "units" }}
+          </div>
+        </div>
+        <div class="obl-bar">
+          <div class="obl-bar-fill" style="width: {% if v.units_pct > 100 %}100{% else %}{{ v.units_pct }}{% endif %}%; {% if v.units_pct > 100 %}background: var(--err);{% endif %}"></div>
+        </div>
+        {% if v.units_pct > 100 %}
+          <div style="font-size: 0.78rem; color: var(--err); margin-top: 0.35rem;">
+            Over commitment by {{ v.units_pct - 100 }}% &mdash; overage flagging lands in M2a-1.5c.
+          </div>
+        {% endif %}
+        {% if v.recent_events %}
+          <details style="margin-top: 0.75rem;">
+            <summary style="cursor: pointer; font-size: 0.82rem; color: var(--ink-3);">Recent usage events ({{ v.recent_events|length }})</summary>
+            <table style="margin-top: 0.5rem; font-size: 0.82rem;">
+              <thead><tr><th>Received</th><th style="text-align:right">Units</th><th>Source</th></tr></thead>
+              <tbody>
+                {% for ev in v.recent_events %}
+                <tr>
+                  <td class="mono">{{ ev.received_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                  <td class="mono" style="text-align:right">{{ "{:,}".format(ev.units) }}</td>
+                  <td>{{ ev.source }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
 {% endfor %}
 

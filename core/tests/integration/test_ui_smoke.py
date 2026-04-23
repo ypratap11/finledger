@@ -113,3 +113,13 @@ async def test_revrec_runs_empty_returns_200(client_with_fresh_db):
         r = await c.get("/revrec/runs")
     assert r.status_code == 200
     assert "Recognition Log" in r.text
+
+
+@pytest.mark.asyncio
+async def test_revrec_usage_empty_returns_200(client_with_fresh_db):
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/revrec/usage")
+    assert r.status_code == 200
+    assert "Usage Events" in r.text

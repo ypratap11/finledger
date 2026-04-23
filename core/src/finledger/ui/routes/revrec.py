@@ -102,15 +102,47 @@ async def contract_detail(
     )).all()
     recognized_map = {oid: int(cents) for oid, cents in rec_rows}
 
+    from finledger.models.revrec import UsageEvent
+    consumption_ids = [o.id for o in obligations if o.pattern == "consumption"]
+    units_by_obligation: dict = {}
+    recent_events_by_obligation: dict = {}
+    if consumption_ids:
+        unit_rows = (await session.execute(
+            select(
+                UsageEvent.obligation_id,
+                func.coalesce(func.sum(UsageEvent.units), 0),
+            )
+            .where(UsageEvent.obligation_id.in_(consumption_ids))
+            .group_by(UsageEvent.obligation_id)
+        )).all()
+        units_by_obligation = {oid: int(n) for oid, n in unit_rows}
+        for oid in consumption_ids:
+            recent = (await session.execute(
+                select(UsageEvent)
+                .where(UsageEvent.obligation_id == oid)
+                .order_by(UsageEvent.received_at.desc())
+                .limit(5)
+            )).scalars().all()
+            recent_events_by_obligation[oid] = recent
+
     obl_views = []
     for o in obligations:
         recognized = recognized_map.get(o.id, 0)
         pct = int(100 * recognized / o.total_amount_cents) if o.total_amount_cents else 0
+        units_consumed = units_by_obligation.get(o.id, 0)
+        units_pct = (
+            int(100 * units_consumed / o.units_total)
+            if (o.pattern == "consumption" and o.units_total)
+            else 0
+        )
         obl_views.append({
             "obligation": o,
             "recognized": recognized,
             "deferred": o.total_amount_cents - recognized,
             "pct": pct,
+            "units_consumed": units_consumed,
+            "units_pct": units_pct,
+            "recent_events": recent_events_by_obligation.get(o.id, []),
         })
 
     return request.app.state.templates.TemplateResponse(
