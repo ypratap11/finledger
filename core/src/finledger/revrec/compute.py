@@ -9,6 +9,7 @@ class ObligationSnapshot:
     start_date: date
     end_date: date | None
     pattern: str
+    units_total: int | None = None
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ def compute_recognition(
     already_recognized_cents: int,
     already_recognized_through: date | None,
     run_through_date: date,
+    unprocessed_units: int = 0,
 ) -> RecognitionDelta | None:
     """Returns the amount to recognize between already_recognized_through (exclusive)
     and run_through_date (inclusive), or None if there's nothing to recognize."""
@@ -33,7 +35,34 @@ def compute_recognition(
         return _compute_ratable_daily(
             obligation, already_recognized_cents, already_recognized_through, run_through_date
         )
+    if obligation.pattern == "consumption":
+        return _compute_consumption(
+            obligation, already_recognized_cents, unprocessed_units, run_through_date
+        )
     raise ValueError(f"unknown pattern: {obligation.pattern}")
+
+
+def _compute_consumption(
+    o: ObligationSnapshot,
+    already_cents: int,
+    unprocessed_units: int,
+    run_through_date: date,
+) -> RecognitionDelta | None:
+    if unprocessed_units <= 0:
+        return None
+    if o.units_total is None or o.units_total <= 0:
+        raise ValueError("consumption obligation requires positive units_total")
+    if already_cents >= o.total_amount_cents:
+        return None
+    proposed = (unprocessed_units * o.total_amount_cents) // o.units_total
+    remaining = o.total_amount_cents - already_cents
+    amount = min(proposed, remaining)
+    if amount <= 0:
+        return None
+    return RecognitionDelta(
+        recognized_cents=amount,
+        recognized_through=run_through_date,
+    )
 
 
 def _compute_ratable_daily(
