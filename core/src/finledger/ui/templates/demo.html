@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FinLedger — Live Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234f46e5%22/><text y=%2270%22 x=%2250%22 text-anchor=%22middle%22 font-size=%2260%22 font-family=%22system-ui%22 font-weight=%22700%22 fill=%22white%22>F</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #4f46e5;
+    --brand-2: #7c3aed;
+    --ok: #059669;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    background: #0a0a0e;
+    color: #e8e8ee;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .stage { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  .top-bar {
+    height: 48px;
+    background: rgba(15, 15, 22, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 1.25rem;
+    flex-shrink: 0;
+    z-index: 50;
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; color: #e8e8ee; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+  .brand-mark {
+    width: 24px; height: 24px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.82rem;
+  }
+  .top-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .top-actions a, .top-actions button {
+    color: #b5b5c2; background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 0.35rem 0.75rem; font-size: 0.8rem;
+    border-radius: 6px; text-decoration: none; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .top-actions a:hover, .top-actions button:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+  .top-actions button.muted { opacity: 0.4; }
+
+  .stage-body { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .frame-wrap {
+    position: absolute; inset: 64px 24px 220px 24px;
+    border-radius: 12px; overflow: hidden; background: #fff;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);
+    transition: opacity 0.4s ease;
+  }
+  .frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  .title-card {
+    position: absolute; inset: 64px 24px 220px 24px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #14142b 0%, #1e1b4b 70%, #312e81 100%);
+    border-radius: 12px; text-align: center; padding: 2rem;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+    transition: opacity 0.4s ease;
+  }
+  .title-card.hidden { opacity: 0; pointer-events: none; }
+  .title-card h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem); margin: 0 0 0.5rem;
+    font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #c4b5fd 0%, #fff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .title-card p { font-size: clamp(1rem, 1.5vw, 1.25rem); color: #a5a5b8; max-width: 640px; margin: 0; }
+  .title-card .start-btn {
+    margin-top: 2rem; padding: 0.85rem 2rem;
+    font-size: 1rem; font-weight: 600;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+    color: #fff; border: 0; border-radius: 10px; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+    transition: transform 0.15s; font-family: inherit;
+  }
+  .title-card .start-btn:hover { transform: translateY(-1px); }
+  .title-card .meta { margin-top: 1.25rem; color: #6b6b7d; font-size: 0.82rem; }
+
+  .final-card {
+    position: absolute; inset: 64px 24px 220px 24px;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #064e3b 0%, #1e1b4b 100%);
+    border-radius: 12px; text-align: center; padding: 2rem;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+  }
+  .final-card.show { display: flex; }
+  .final-card h1 { font-size: clamp(1.6rem, 4vw, 2.6rem); margin: 0 0 0.5rem; color: #fff; }
+  .final-card .repo {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: clamp(1rem, 1.6vw, 1.5rem);
+    color: #c4b5fd; background: rgba(0,0,0,0.3);
+    padding: 0.6rem 1.25rem; border-radius: 8px;
+    margin-top: 1.5rem; border: 1px solid rgba(255,255,255,0.1);
+  }
+  .final-card .restart-btn {
+    margin-top: 1.5rem; padding: 0.6rem 1.5rem;
+    background: rgba(255,255,255,0.1); color: #fff;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-family: inherit;
+  }
+  .final-card .restart-btn:hover { background: rgba(255,255,255,0.18); }
+
+  .caption-panel {
+    position: absolute; left: 24px; right: 24px; bottom: 24px;
+    height: 180px;
+    background: rgba(15, 15, 22, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px; padding: 1.25rem 1.5rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; z-index: 30;
+  }
+  .scene-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .scene-meta .scene-num { font-size: 0.7rem; color: #8a8a9a; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .scene-meta .scene-title { font-size: 0.82rem; color: #c4b5fd; font-weight: 600; }
+  .progress-track { display: flex; gap: 4px; height: 3px; margin-bottom: 0.85rem; }
+  .progress-dot { flex: 1; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; position: relative; }
+  .progress-dot.active { background: rgba(124, 58, 237, 0.3); }
+  .progress-dot.active .progress-fill {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    width: 100%; transform-origin: left; transform: scaleX(0);
+    animation: fill-progress var(--scene-duration, 12s) linear forwards;
+  }
+  .progress-dot.done { background: rgba(124, 58, 237, 0.6); }
+  @keyframes fill-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  .caption-text { flex: 1; overflow-y: auto; font-size: 1.1rem; line-height: 1.55; color: #e8e8ee; font-weight: 400; letter-spacing: -0.005em; }
+  .caption-text strong { color: #c4b5fd; font-weight: 600; }
+  .controls {
+    display: flex; gap: 0.5rem; align-items: center;
+    margin-top: 0.6rem; padding-top: 0.6rem;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .controls button {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #c4b5fd; padding: 0.4rem 0.85rem;
+    border-radius: 6px; cursor: pointer; font-size: 0.78rem;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .controls button:hover { background: rgba(124, 58, 237, 0.15); color: #fff; }
+  .controls button.primary {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+    color: #fff; border-color: transparent;
+  }
+  .controls .voice-status {
+    margin-left: auto; font-size: 0.72rem; color: #6b6b7d;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .voice-status .dot { width: 6px; height: 6px; border-radius: 50%; background: #6b6b7d; }
+  .voice-status.speaking .dot { background: var(--ok); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .loader {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    z-index: 40; transition: opacity 0.3s;
+  }
+  .loader.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: #c4b5fd; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top-bar">
+    <a href="/" class="brand">
+      <span class="brand-mark">F</span>
+      <span>FinLedger — Guided Tour</span>
+    </a>
+    <div class="top-actions">
+      <button id="muteBtn" title="Mute narration">Voice</button>
+      <a href="/" target="_top">Exit demo</a>
+    </div>
+  </div>
+
+  <div class="stage-body">
+    <div id="titleCard" class="title-card">
+      <h1>FinLedger in 90 seconds</h1>
+      <p>Open-source SaaS finance pipeline. Stripe + Zuora ingest, double-entry ledger, ASC 606 revenue recognition, reconciliation. Watch it run end-to-end.</p>
+      <button id="startBtn" class="start-btn">Start tour</button>
+      <div class="meta">Narration uses your browser's voice synthesis. No data leaves your machine.</div>
+    </div>
+
+    <div id="frameWrap" class="frame-wrap" style="opacity:0; pointer-events:none;">
+      <iframe id="stageFrame" src="about:blank"></iframe>
+    </div>
+
+    <div id="loader" class="loader hidden">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="finalCard" class="final-card">
+      <h1>Take it. Run it. Ship faster.</h1>
+      <p style="color:#a5a5b8; max-width:520px;">Clone, deploy, or fork. Open source. ASC 606 patterns, hash-chained inbox, recon, CSV export — out of the box.</p>
+      <div class="repo">github.com/ypratap11/finledger</div>
+      <button id="restartBtn" class="restart-btn">Watch again</button>
+    </div>
+  </div>
+
+  <div class="caption-panel">
+    <div class="scene-meta">
+      <span class="scene-num" id="sceneNum">Ready when you are</span>
+      <span class="scene-title" id="sceneTitle"></span>
+    </div>
+    <div class="progress-track" id="progressTrack"></div>
+    <div class="caption-text" id="captionText">Click Start tour to begin.</div>
+    <div class="controls">
+      <button id="prevBtn">Prev</button>
+      <button id="playBtn" class="primary">Play</button>
+      <button id="nextBtn">Next</button>
+      <div class="voice-status" id="voiceStatus"><span class="dot"></span><span id="voiceStatusText">idle</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const SCENES = [
+    {
+      id: 1, title: "Hook", kind: "title", duration: 11,
+      caption: "Every SaaS company rebuilds the same broken pipeline: webhook in, maybe a ledger, maybe reconciliation, finance crying at month-end. FinLedger is the open source one you don't have to build.",
+    },
+    {
+      id: 2, title: "Source events", kind: "iframe", url: "/", duration: 11,
+      caption: "Stripe charges, Zuora invoices — they all land in the inbox. Every event hash-chained, so any tampering breaks the chain.",
+    },
+    {
+      id: 3, title: "Double-entry ledger", kind: "iframe", url: "/journal", duration: 11,
+      caption: "Every journal entry posted with debits equals credits, enforced by Postgres itself, not application code. The books always balance.",
+    },
+    {
+      id: 4, title: "ASC 606 patterns", kind: "iframe", url: "/revrec/contracts", duration: 13,
+      caption: "Revenue recognition handles all four ASC 606 Step 5 patterns out of the box: ratable subscriptions, point-in-time licenses, prepaid usage commitments, and pay-as-you-go.",
+    },
+    {
+      id: 5, title: "Live usage flow", kind: "iframe", url: "/revrec/usage", duration: 13,
+      caption: "When a usage event arrives, revenue accrues — to deferred revenue for prepaid plans, to unbilled receivables for pay-as-you-go. Same engine. One balanced journal entry per run.",
+    },
+    {
+      id: 6, title: "Waterfall", kind: "iframe", url: "/revrec", duration: 11,
+      caption: "The waterfall projects the next twelve months. Backlog, deferred revenue, recognized revenue — your CFO sees it all in one place.",
+    },
+    {
+      id: 7, title: "Reconciliation", kind: "iframe", url: "/recon", duration: 10,
+      caption: "Stripe and Zuora reconcile against the same ledger. Hash chain stays intact. CSV export today, ERP connectors next.",
+    },
+    {
+      id: 8, title: "Take it", kind: "final", duration: 9,
+      caption: "It's open source. Find it at github dot com slash y pratap one one slash finledger. Take it, run it, ship faster.",
+    },
+  ];
+
+  let sceneIdx = -1;
+  let isPlaying = false;
+  let isMuted = false;
+  let advanceTimer = null;
+  const synth = window.speechSynthesis;
+
+  const titleCard = document.getElementById("titleCard");
+  const frameWrap = document.getElementById("frameWrap");
+  const stageFrame = document.getElementById("stageFrame");
+  const finalCard = document.getElementById("finalCard");
+  const sceneNum = document.getElementById("sceneNum");
+  const sceneTitle = document.getElementById("sceneTitle");
+  const captionText = document.getElementById("captionText");
+  const progressTrack = document.getElementById("progressTrack");
+  const playBtn = document.getElementById("playBtn");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const muteBtn = document.getElementById("muteBtn");
+  const startBtn = document.getElementById("startBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const loader = document.getElementById("loader");
+  const voiceStatus = document.getElementById("voiceStatus");
+  const voiceStatusText = document.getElementById("voiceStatusText");
+
+  // Build progress dots without innerHTML
+  const dots = SCENES.map((_, i) => {
+    const dot = document.createElement("div");
+    dot.className = "progress-dot";
+    dot.dataset.idx = i;
+    const fill = document.createElement("div");
+    fill.className = "progress-fill";
+    dot.appendChild(fill);
+    progressTrack.appendChild(dot);
+    return dot;
+  });
+
+  function clearTimers() {
+    if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
+    if (synth) synth.cancel();
+  }
+
+  function setVoiceStatus(state) {
+    voiceStatus.classList.remove("speaking");
+    if (state === "speaking") { voiceStatus.classList.add("speaking"); voiceStatusText.textContent = "narrating"; }
+    else if (state === "idle") { voiceStatusText.textContent = "idle"; }
+    else if (state === "muted") { voiceStatusText.textContent = "muted"; }
+    else { voiceStatusText.textContent = state; }
+  }
+
+  function speak(text, onend) {
+    if (!synth || isMuted) {
+      setVoiceStatus(isMuted ? "muted" : "unsupported");
+      if (onend) onend();
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02; u.pitch = 1.0; u.volume = 1.0;
+    const voices = synth.getVoices();
+    const preferred = voices.find(v => /Google US English|Samantha|Microsoft Aria|Microsoft Jenny/.test(v.name))
+                   || voices.find(v => v.lang && v.lang.startsWith("en"));
+    if (preferred) u.voice = preferred;
+    u.onstart = () => setVoiceStatus("speaking");
+    u.onend = () => { setVoiceStatus("idle"); if (onend) onend(); };
+    u.onerror = () => { setVoiceStatus("idle"); if (onend) onend(); };
+    synth.speak(u);
+  }
+
+  function showStage(kind, url) {
+    titleCard.classList.toggle("hidden", kind !== "title");
+    finalCard.classList.toggle("show", kind === "final");
+    if (kind === "iframe") {
+      frameWrap.style.opacity = "1";
+      frameWrap.style.pointerEvents = "auto";
+      if (stageFrame.dataset.url !== url) {
+        loader.classList.remove("hidden");
+        stageFrame.dataset.url = url;
+        stageFrame.src = url;
+        stageFrame.onload = () => loader.classList.add("hidden");
+      }
+    } else {
+      frameWrap.style.opacity = "0";
+      frameWrap.style.pointerEvents = "none";
+      loader.classList.add("hidden");
+    }
+  }
+
+  function renderScene(idx) {
+    const scene = SCENES[idx];
+    sceneNum.textContent = "Scene " + (idx + 1) + " of " + SCENES.length;
+    sceneTitle.textContent = scene.title;
+    captionText.textContent = scene.caption;
+    dots.forEach((d, i) => {
+      d.classList.toggle("active", i === idx);
+      d.classList.toggle("done", i < idx);
+      const fill = d.querySelector(".progress-fill");
+      if (i === idx && isPlaying) {
+        d.style.setProperty("--scene-duration", scene.duration + "s");
+        fill.style.animation = "none";
+        // eslint-disable-next-line no-unused-expressions
+        fill.offsetHeight;
+        fill.style.animation = "";
+      } else {
+        fill.style.animation = "none";
+        fill.style.transform = i < idx ? "scaleX(1)" : "scaleX(0)";
+      }
+    });
+    showStage(scene.kind, scene.url);
+  }
+
+  function advance() {
+    clearTimers();
+    if (sceneIdx >= SCENES.length - 1) {
+      isPlaying = false;
+      playBtn.textContent = "Restart";
+      return;
+    }
+    sceneIdx++;
+    renderScene(sceneIdx);
+    if (isPlaying) {
+      const scene = SCENES[sceneIdx];
+      speak(scene.caption, () => {
+        if (isPlaying) advanceTimer = setTimeout(advance, 600);
+      });
+      const fallbackMs = scene.duration * 1000 + 1500;
+      advanceTimer = setTimeout(() => { if (isPlaying) advance(); }, fallbackMs);
+    }
+  }
+
+  function play() {
+    if (sceneIdx >= SCENES.length - 1) sceneIdx = -1;
+    isPlaying = true;
+    playBtn.textContent = "Pause";
+    advance();
+  }
+
+  function pause() {
+    isPlaying = false;
+    clearTimers();
+    setVoiceStatus("idle");
+    playBtn.textContent = "Play";
+  }
+
+  startBtn.addEventListener("click", () => { sceneIdx = -1; play(); });
+  restartBtn.addEventListener("click", () => { sceneIdx = -1; finalCard.classList.remove("show"); play(); });
+  playBtn.addEventListener("click", () => { if (isPlaying) pause(); else play(); });
+  prevBtn.addEventListener("click", () => {
+    clearTimers();
+    sceneIdx = Math.max(0, sceneIdx - 1);
+    renderScene(sceneIdx);
+    if (isPlaying) {
+      const scene = SCENES[sceneIdx];
+      speak(scene.caption, () => { if (isPlaying) advanceTimer = setTimeout(advance, 600); });
+    }
+  });
+  nextBtn.addEventListener("click", () => {
+    clearTimers();
+    if (sceneIdx < SCENES.length - 1) {
+      sceneIdx++;
+      renderScene(sceneIdx);
+      if (isPlaying) {
+        const scene = SCENES[sceneIdx];
+        speak(scene.caption, () => { if (isPlaying) advanceTimer = setTimeout(advance, 600); });
+      }
+    }
+  });
+  muteBtn.addEventListener("click", () => {
+    isMuted = !isMuted;
+    muteBtn.textContent = isMuted ? "Voice off" : "Voice";
+    muteBtn.classList.toggle("muted", isMuted);
+    if (isMuted && synth) synth.cancel();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+    if (e.key === "ArrowRight") nextBtn.click();
+    if (e.key === "ArrowLeft") prevBtn.click();
+    if (e.key.toLowerCase() === "m") muteBtn.click();
+    if (e.key === "Escape") window.location.href = "/";
+  });
+
+  if (synth && synth.getVoices().length === 0) {
+    synth.addEventListener("voiceschanged", () => {});
+  }
+
+  setVoiceStatus("idle");
+})();
+</script>
+</body>
+</html>

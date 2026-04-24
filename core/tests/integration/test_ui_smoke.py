@@ -126,6 +126,17 @@ async def test_revrec_usage_empty_returns_200(client_with_fresh_db):
 
 
 @pytest.mark.asyncio
+async def test_demo_page_returns_200(client_with_fresh_db):
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r = await c.get("/demo")
+    assert r.status_code == 200
+    assert "FinLedger in 90 seconds" in r.text
+    assert "Start tour" in r.text
+
+
+@pytest.mark.asyncio
 async def test_revrec_payg_contract_detail_renders(client_with_fresh_db):
     async with AsyncClient(
         transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
