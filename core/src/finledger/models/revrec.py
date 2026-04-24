@@ -40,6 +40,9 @@ class PerformanceObligation(Base):
     currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     deferred_revenue_account_code: Mapped[str] = mapped_column(String, nullable=False)
     revenue_account_code: Mapped[str] = mapped_column(String, nullable=False)
+    units_total: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    unit_label: Mapped[str | None] = mapped_column(String, nullable=True)
+    external_ref: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     contract: Mapped["Contract"] = relationship("Contract", back_populates="obligations")
 
@@ -71,3 +74,24 @@ class RecognitionEvent(Base):
     )
     recognized_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
     recognized_through: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class UsageEvent(Base):
+    __tablename__ = "usage_events"
+    __table_args__ = ({"schema": "revrec"},)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    obligation_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("revrec.performance_obligations.id"), nullable=False
+    )
+    units: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    source_event_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("inbox.source_events.id"), nullable=True
+    )
+    recognized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recognition_run_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("revrec.recognition_runs.id"), nullable=True
+    )

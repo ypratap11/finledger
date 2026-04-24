@@ -42,6 +42,19 @@ See `docs/superpowers/specs/2026-04-16-m2a-1-revrec-design.md` for the full desi
 
 M2a-2 (SSP allocation + contract modifications) and M2a-3 (variable consideration + constraint) are planned follow-ups. Consumption-based recognition is M2a-1.5.
 
+## What M2a-1.5a adds (committed usage drain)
+
+- **New `consumption` recognition pattern.** Obligations now support a usage-based pattern alongside ratable and point-in-time. Recognition drains deferred revenue proportional to units consumed, capped at the contract price (ASC 606: never over-recognize).
+- **`usage_events` table.** Append-only log of units consumed per obligation, with idempotency keys, `occurred_at` vs `received_at` tracking, and a pending-queue sentinel (`recognized_at IS NULL`) for the scheduler to drain.
+- **Two ingestion paths.** Direct HTTP `POST /revrec/usage` for customer apps and metering middleware; Zuora `usage.uploaded` webhook via a non-posting handler in the M1 posting engine. Both write to the same table.
+- **Contract-level consumption view.** `/revrec/contracts/{id}` shows units-consumed vs committed with a progress bar and a collapsed mini-table of recent events.
+- **`/revrec/usage` page.** Flat list of all usage events with status pill (pending / recognized).
+- **Waterfall integration.** Consumption obligations contribute their remaining `total_amount_cents - recognized_cents` to the current-month bucket (no future projection yet — usage-rate forecasts land in a later milestone).
+
+See `docs/superpowers/specs/2026-04-21-m2a-1-5a-consumption-drain-design.md` for the full design.
+
+Still to come: **M2a-1.5b** (pay-as-you-go, no commitment), **M2a-1.5c** (overage flagging + hybrid), CSV batch import of usage, and usage-rate projection in the waterfall.
+
 ## Run locally
 
     docker compose up -d postgres

@@ -8,6 +8,24 @@ from finledger.posting.mappers import get_mapper, UnknownEventType
 
 async def process_one(session: AsyncSession, event: SourceEvent) -> bool:
     """Process a single source event. Returns True if a journal entry was posted."""
+    # Non-posting handlers: source events that trigger side-effects (e.g. usage
+    # event ingestion) but do NOT produce a journal entry of their own.
+    from finledger.revrec.usage_genesis import from_zuora_usage
+    NON_POSTING_HANDLERS = {
+        ("zuora", "usage.uploaded"): from_zuora_usage,
+    }
+    key = (event.source, event.event_type)
+    if key in NON_POSTING_HANDLERS:
+        try:
+            await NON_POSTING_HANDLERS[key](session, event.payload, event.id)
+            event.processed_at = datetime.now(timezone.utc)
+            event.processing_error = None
+            await session.flush()
+        except Exception as e:
+            event.processing_error = f"{type(e).__name__}: {e}"
+            await session.flush()
+        return False
+
     try:
         mapper = get_mapper(event.source, event.event_type)
     except UnknownEventType as e:

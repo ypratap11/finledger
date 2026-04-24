@@ -42,3 +42,24 @@ def test_point_in_time_past_start_already_recognized_is_empty():
         today=date(2026, 4, 16), horizon_months=12,
     )
     assert sum(months.values()) == 0
+
+
+def test_consumption_remaining_collapses_to_today_month():
+    months = project_obligation_by_month(
+        total_cents=100000, start=date(2026, 1, 1), end=None,
+        pattern="consumption",
+        already_cents=60000, already_through=None,
+        today=date(2026, 5, 15), horizon_months=12,
+    )
+    assert months[date(2026, 5, 1)] == 40000
+    assert len([k for k, v in months.items() if v > 0]) == 1
+
+
+def test_consumption_fully_recognized_returns_empty():
+    months = project_obligation_by_month(
+        total_cents=100000, start=date(2026, 1, 1), end=None,
+        pattern="consumption",
+        already_cents=100000, already_through=None,
+        today=date(2026, 5, 15), horizon_months=12,
+    )
+    assert sum(months.values()) == 0

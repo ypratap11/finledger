@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Usage Events{% endblock %}
+{% set active = "revrec" %}
+{% block content %}
+<p><a href="/revrec" class="link">&larr; Revenue</a></p>
+<h1>Usage Events</h1>
+<p class="subtitle">Raw consumption events. Status "Pending" = queued for next recognition run.</p>
+
+<div class="card" style="overflow-x: auto;">
+{% if events %}
+<table>
+<thead>
+  <tr>
+    <th>Received</th>
+    <th>Occurred</th>
+    <th style="text-align: right;">Units</th>
+    <th>Source</th>
+    <th>Obligation</th>
+    <th>Status</th>
+  </tr>
+</thead>
+<tbody>
+{% for e in events %}
+<tr>
+  <td class="mono">{{ e.received_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+  <td class="mono">{{ e.occurred_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+  <td class="mono" style="text-align: right;">{{ "{:,}".format(e.units) }}</td>
+  <td>{{ e.source }}</td>
+  <td class="mono">{{ e.obligation_id|string|truncate(8, True, '') }}&hellip;</td>
+  <td>
+    {% if e.recognized_at %}
+      <span class="pill pill-ok">Recognized</span>
+    {% else %}
+      <span class="pill pill-pending">Pending</span>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1F4CA;</div>
+  <div class="empty-title">No usage events yet</div>
+  <div class="empty-hint">POST to <code>/revrec/usage</code> or send a Zuora <code>usage.uploaded</code> webhook.</div>
+</div>
+{% endif %}
+</div>
+{% endblock %}

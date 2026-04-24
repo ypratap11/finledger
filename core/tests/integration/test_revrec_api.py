@@ -135,3 +135,177 @@ async def test_waterfall_json_has_months_and_total(async_client):
     body = r2.json()
     assert "months" in body and "total" in body
     assert body["total"] == 31000
+
+
+# ---- M2a-1.5a: consumption API ----------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_consumption_obligation(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "CONSUMPTION-1", "effective_date": "2026-05-01",
+        "total_amount_cents": 120000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "API calls",
+        "pattern": "consumption",
+        "start_date": "2026-05-01",
+        "total_amount_cents": 120000,
+        "units_total": 1000000,
+        "unit_label": "API calls",
+        "external_ref": "zuora-rpc-xyz",
+    })
+    assert r2.status_code == 201
+    assert "id" in r2.json()
+
+
+@pytest.mark.asyncio
+async def test_create_consumption_obligation_without_units_total_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "CONSUMPTION-2", "effective_date": "2026-05-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "bad", "pattern": "consumption",
+        "start_date": "2026-05-01", "total_amount_cents": 1000,
+    })
+    assert r2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reject_units_total_on_ratable_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "CONSUMPTION-3", "effective_date": "2026-05-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "bad", "pattern": "ratable_daily",
+        "start_date": "2026-05-01", "end_date": "2026-05-31",
+        "total_amount_cents": 1000,
+        "units_total": 500,
+    })
+    assert r2.status_code == 422
+
+
+async def _seed_consumption_via_api(async_client, *, ref_prefix, units_total=1000, total_cents=1000):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": ref_prefix, "effective_date": "2026-05-01",
+        "total_amount_cents": total_cents,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "consumption",
+        "pattern": "consumption",
+        "start_date": "2026-05-01",
+        "total_amount_cents": total_cents,
+        "units_total": units_total,
+    })
+    return cid, r2.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_post_usage_event_success(async_client):
+    _, oid = await _seed_consumption_via_api(
+        async_client, ref_prefix="USAGE-API-1",
+        units_total=1000000, total_cents=120000,
+    )
+    r3 = await async_client.post("/revrec/usage", json={
+        "obligation_id": oid,
+        "units": 1500,
+        "occurred_at": "2026-03-15T10:30:00Z",
+        "idempotency_key": "app-evt-abc",
+    })
+    assert r3.status_code == 201, r3.text
+    body = r3.json()
+    assert "id" in body
+    assert "received_at" in body
+
+
+@pytest.mark.asyncio
+async def test_post_usage_duplicate_idempotency_key_409(async_client):
+    _, oid = await _seed_consumption_via_api(
+        async_client, ref_prefix="USAGE-API-2", units_total=100, total_cents=1000,
+    )
+    body = {
+        "obligation_id": oid, "units": 1,
+        "occurred_at": "2026-03-15T10:30:00Z",
+        "idempotency_key": "dup-key-1",
+    }
+    r_a = await async_client.post("/revrec/usage", json=body)
+    r_b = await async_client.post("/revrec/usage", json=body)
+    assert r_a.status_code == 201
+    assert r_b.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_post_usage_obligation_not_found_404(async_client):
+    r = await async_client.post("/revrec/usage", json={
+        "obligation_id": "00000000-0000-0000-0000-000000000000",
+        "units": 1,
+        "occurred_at": "2026-03-15T10:30:00Z",
+        "idempotency_key": "nf-key",
+    })
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_post_usage_pattern_mismatch_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "USAGE-API-MM", "effective_date": "2026-05-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "x", "pattern": "ratable_daily",
+        "start_date": "2026-05-01", "end_date": "2026-05-31",
+        "total_amount_cents": 1000,
+    })
+    oid = r2.json()["id"]
+    r3 = await async_client.post("/revrec/usage", json={
+        "obligation_id": oid,
+        "units": 1,
+        "occurred_at": "2026-03-15T10:30:00Z",
+        "idempotency_key": "mm-key",
+    })
+    assert r3.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_usage_units_zero_422(async_client):
+    _, oid = await _seed_consumption_via_api(
+        async_client, ref_prefix="USAGE-API-ZERO", units_total=100,
+    )
+    r3 = await async_client.post("/revrec/usage", json={
+        "obligation_id": oid,
+        "units": 0,
+        "occurred_at": "2026-03-15T10:30:00Z",
+        "idempotency_key": "zero-key",
+    })
+    assert r3.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_usage_empty_json(async_client):
+    r = await async_client.get("/revrec/usage", headers={"accept": "application/json"})
+    assert r.status_code == 200
+    assert r.json() == {"events": []}
+
+
+@pytest.mark.asyncio
+async def test_list_usage_returns_events_newest_first(async_client):
+    _, oid = await _seed_consumption_via_api(
+        async_client, ref_prefix="USAGE-LIST", units_total=1000,
+    )
+    for i in range(3):
+        await async_client.post("/revrec/usage", json={
+            "obligation_id": oid, "units": 10 * (i + 1),
+            "occurred_at": f"2026-03-{10 + i}T10:00:00Z",
+            "idempotency_key": f"list-key-{i}",
+        })
+    r3 = await async_client.get("/revrec/usage", headers={"accept": "application/json"})
+    body = r3.json()
+    assert len(body["events"]) == 3
+    units = [e["units"] for e in body["events"]]
+    assert units == [30, 20, 10]

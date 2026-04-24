@@ -1,10 +1,11 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from finledger.db import SessionLocal, SyncSessionLocal
 from finledger.models.revrec import Contract, PerformanceObligation
@@ -68,6 +69,9 @@ class ObligationIn(BaseModel):
     currency: str = "USD"
     deferred_revenue_account_code: str = "2000-DEFERRED-REV"
     revenue_account_code: str = "4000-REV-SUB"
+    units_total: int | None = None
+    unit_label: str | None = None
+    external_ref: str | None = None
 
 
 class ObligationOut(BaseModel):
@@ -99,15 +103,47 @@ async def contract_detail(
     )).all()
     recognized_map = {oid: int(cents) for oid, cents in rec_rows}
 
+    from finledger.models.revrec import UsageEvent
+    consumption_ids = [o.id for o in obligations if o.pattern == "consumption"]
+    units_by_obligation: dict = {}
+    recent_events_by_obligation: dict = {}
+    if consumption_ids:
+        unit_rows = (await session.execute(
+            select(
+                UsageEvent.obligation_id,
+                func.coalesce(func.sum(UsageEvent.units), 0),
+            )
+            .where(UsageEvent.obligation_id.in_(consumption_ids))
+            .group_by(UsageEvent.obligation_id)
+        )).all()
+        units_by_obligation = {oid: int(n) for oid, n in unit_rows}
+        for oid in consumption_ids:
+            recent = (await session.execute(
+                select(UsageEvent)
+                .where(UsageEvent.obligation_id == oid)
+                .order_by(UsageEvent.received_at.desc())
+                .limit(5)
+            )).scalars().all()
+            recent_events_by_obligation[oid] = recent
+
     obl_views = []
     for o in obligations:
         recognized = recognized_map.get(o.id, 0)
         pct = int(100 * recognized / o.total_amount_cents) if o.total_amount_cents else 0
+        units_consumed = units_by_obligation.get(o.id, 0)
+        units_pct = (
+            int(100 * units_consumed / o.units_total)
+            if (o.pattern == "consumption" and o.units_total)
+            else 0
+        )
         obl_views.append({
             "obligation": o,
             "recognized": recognized,
             "deferred": o.total_amount_cents - recognized,
             "pct": pct,
+            "units_consumed": units_consumed,
+            "units_pct": units_pct,
+            "recent_events": recent_events_by_obligation.get(o.id, []),
         })
 
     return request.app.state.templates.TemplateResponse(
@@ -123,10 +159,16 @@ async def create_obligation(
 ):
     if body.pattern == "ratable_daily" and body.end_date is None:
         raise HTTPException(422, "ratable_daily requires end_date")
-    if body.pattern not in ("ratable_daily", "point_in_time"):
+    if body.pattern not in ("ratable_daily", "point_in_time", "consumption"):
         raise HTTPException(422, f"unknown pattern: {body.pattern}")
     if body.end_date is not None and body.end_date < body.start_date:
         raise HTTPException(422, "end_date before start_date")
+    if body.pattern == "consumption":
+        if body.units_total is None or body.units_total <= 0:
+            raise HTTPException(422, "consumption pattern requires positive units_total")
+    else:
+        if body.units_total is not None:
+            raise HTTPException(422, f"units_total only valid for consumption pattern, got {body.pattern}")
 
     contract = (await session.execute(
         select(Contract).where(Contract.id == contract_id)
@@ -145,6 +187,9 @@ async def create_obligation(
         currency=body.currency,
         deferred_revenue_account_code=body.deferred_revenue_account_code,
         revenue_account_code=body.revenue_account_code,
+        units_total=body.units_total,
+        unit_label=body.unit_label,
+        external_ref=body.external_ref,
         created_at=datetime.now(timezone.utc),
     )
     session.add(obl)
@@ -314,3 +359,95 @@ async def waterfall(
 @router.get("/")
 async def revrec_index(request: Request, session: AsyncSession = Depends(get_async_session)):
     return await waterfall(request=request, months=12, session=session)
+
+
+# ---- M2a-1.5a: usage events --------------------------------------------------
+
+
+class UsageIn(BaseModel):
+    obligation_id: UUID
+    units: int
+    occurred_at: datetime
+    idempotency_key: str
+
+
+class UsageOut(BaseModel):
+    id: UUID
+    received_at: datetime
+
+
+@router.post("/usage", status_code=201, response_model=UsageOut)
+async def post_usage(
+    body: UsageIn,
+    session: AsyncSession = Depends(get_async_session),
+):
+    from finledger.models.revrec import UsageEvent
+    if body.units <= 0:
+        raise HTTPException(422, "units must be > 0")
+    now = datetime.now(timezone.utc)
+    occurred = body.occurred_at
+    if occurred.tzinfo is None:
+        occurred = occurred.replace(tzinfo=timezone.utc)
+    if occurred > now + timedelta(minutes=5):
+        raise HTTPException(422, "occurred_at in the future")
+
+    obligation = (await session.execute(
+        select(PerformanceObligation).where(PerformanceObligation.id == body.obligation_id)
+    )).scalar_one_or_none()
+    if obligation is None:
+        raise HTTPException(404, "obligation not found")
+    if obligation.pattern != "consumption":
+        raise HTTPException(422, f"obligation pattern is {obligation.pattern!r}, not 'consumption'")
+
+    ev = UsageEvent(
+        id=uuid.uuid4(),
+        obligation_id=body.obligation_id,
+        units=body.units,
+        occurred_at=occurred,
+        received_at=now,
+        idempotency_key=body.idempotency_key,
+        source="api",
+    )
+    session.add(ev)
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        if "idempotency_key" in str(e.orig):
+            raise HTTPException(409, "duplicate idempotency_key")
+        raise
+    return UsageOut(id=ev.id, received_at=ev.received_at)
+
+
+@router.get("/usage")
+async def list_usage(
+    request: Request,
+    obligation_id: UUID | None = None,
+    session: AsyncSession = Depends(get_async_session),
+):
+    from finledger.models.revrec import UsageEvent
+    q = select(UsageEvent).order_by(UsageEvent.received_at.desc()).limit(500)
+    if obligation_id is not None:
+        q = q.where(UsageEvent.obligation_id == obligation_id)
+    rows = (await session.execute(q)).scalars().all()
+    data = {
+        "events": [
+            {
+                "id": str(e.id),
+                "obligation_id": str(e.obligation_id),
+                "units": e.units,
+                "occurred_at": e.occurred_at.isoformat(),
+                "received_at": e.received_at.isoformat(),
+                "source": e.source,
+                "recognized_at": e.recognized_at.isoformat() if e.recognized_at else None,
+                "recognition_run_id": str(e.recognition_run_id) if e.recognition_run_id else None,
+            }
+            for e in rows
+        ]
+    }
+    if _wants_json(request):
+        return JSONResponse(data)
+    return request.app.state.templates.TemplateResponse(
+        request=request, name="revrec_usage.html",
+        context={"events": rows},
+    )
