@@ -105,21 +105,21 @@ async def contract_detail(
     )).all()
     recognized_map = {oid: int(cents) for oid, cents in rec_rows}
 
-    from finledger.models.revrec import UsageEvent
-    consumption_ids = [o.id for o in obligations if o.pattern == "consumption"]
+    from finledger.models.revrec import UsageEvent, PaygReclassification
+    usage_pattern_ids = [o.id for o in obligations if o.pattern in ("consumption", "consumption_payg")]
     units_by_obligation: dict = {}
     recent_events_by_obligation: dict = {}
-    if consumption_ids:
+    if usage_pattern_ids:
         unit_rows = (await session.execute(
             select(
                 UsageEvent.obligation_id,
                 func.coalesce(func.sum(UsageEvent.units), 0),
             )
-            .where(UsageEvent.obligation_id.in_(consumption_ids))
+            .where(UsageEvent.obligation_id.in_(usage_pattern_ids))
             .group_by(UsageEvent.obligation_id)
         )).all()
         units_by_obligation = {oid: int(n) for oid, n in unit_rows}
-        for oid in consumption_ids:
+        for oid in usage_pattern_ids:
             recent = (await session.execute(
                 select(UsageEvent)
                 .where(UsageEvent.obligation_id == oid)
@@ -127,6 +127,19 @@ async def contract_detail(
                 .limit(5)
             )).scalars().all()
             recent_events_by_obligation[oid] = recent
+
+    payg_ids = [o.id for o in obligations if o.pattern == "consumption_payg"]
+    billed_by_obligation: dict = {}
+    if payg_ids:
+        billed_rows = (await session.execute(
+            select(
+                PaygReclassification.obligation_id,
+                func.coalesce(func.sum(PaygReclassification.amount_cents), 0),
+            )
+            .where(PaygReclassification.obligation_id.in_(payg_ids))
+            .group_by(PaygReclassification.obligation_id)
+        )).all()
+        billed_by_obligation = {oid: int(amt) for oid, amt in billed_rows}
 
     obl_views = []
     for o in obligations:
@@ -139,6 +152,8 @@ async def contract_detail(
             if (o.pattern == "consumption" and o.units_total)
             else 0
         )
+        recognized_billed = billed_by_obligation.get(o.id, 0)
+        recognized_unbilled = recognized - recognized_billed
         obl_views.append({
             "obligation": o,
             "recognized": recognized,
@@ -147,6 +162,8 @@ async def contract_detail(
             "units_consumed": units_consumed,
             "units_pct": units_pct,
             "recent_events": recent_events_by_obligation.get(o.id, []),
+            "recognized_unbilled": recognized_unbilled,
+            "recognized_billed": recognized_billed,
         })
 
     return request.app.state.templates.TemplateResponse(
@@ -317,7 +334,7 @@ async def waterfall(
     for o in obligations:
         cents, through = already_map.get(o.id, (0, None))
         m = project_obligation_by_month(
-            total_cents=o.total_amount_cents,
+            total_cents=o.total_amount_cents or 0,
             start=o.start_date, end=o.end_date, pattern=o.pattern,
             already_cents=cents, already_through=through,
             today=today, horizon_months=months,

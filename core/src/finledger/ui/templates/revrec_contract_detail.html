@@ -30,7 +30,36 @@
       <span><span class="dot dot-warn"></span> <strong class="mono">${{ "{:,.2f}".format(v.deferred / 100) }}</strong> deferred</span>
       <span style="margin-left: auto; color: var(--ink-3);" class="mono">{{ v.pct }}%</span>
     </div>
-    {% if o.pattern == "consumption" %}
+    {% if o.pattern == "consumption_payg" %}
+      <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
+        <div style="font-size: 0.82rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 0.6rem;">
+          Pay-as-you-go
+        </div>
+        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.85rem;">
+          <span><strong class="mono">{{ "{:,}".format(v.units_consumed) }}</strong> {{ o.unit_label or "units" }} consumed</span>
+          <span>Recognized (unbilled): <strong class="mono">${{ "{:,.2f}".format(v.recognized_unbilled / 100) }}</strong></span>
+          <span>Recognized (billed): <strong class="mono">${{ "{:,.2f}".format(v.recognized_billed / 100) }}</strong></span>
+          <span style="margin-left: auto; color: var(--ink-3);" class="mono">@ ${{ "{:.4f}".format(o.price_per_unit_cents / 100) }} / unit</span>
+        </div>
+        {% if v.recent_events %}
+          <details style="margin-top: 0.75rem;">
+            <summary style="cursor: pointer; font-size: 0.82rem; color: var(--ink-3);">Recent usage events ({{ v.recent_events|length }})</summary>
+            <table style="margin-top: 0.5rem; font-size: 0.82rem;">
+              <thead><tr><th>Received</th><th style="text-align:right">Units</th><th>Source</th></tr></thead>
+              <tbody>
+                {% for ev in v.recent_events %}
+                <tr>
+                  <td class="mono">{{ ev.received_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                  <td class="mono" style="text-align:right">{{ "{:,}".format(ev.units) }}</td>
+                  <td>{{ ev.source }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+        {% endif %}
+      </div>
+    {% elif o.pattern == "consumption" %}
       <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem;">
           <div style="font-size: 0.82rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;">
