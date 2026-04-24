@@ -466,3 +466,65 @@ async def list_usage(
         request=request, name="revrec_usage.html",
         context={"events": rows},
     )
+
+
+# ---- M2a-1.5b: PAYG admin bill -----------------------------------------------
+
+class BillIn(BaseModel):
+    invoice_amount_cents: int
+    period_start: date
+    period_end: date
+    external_ref: str | None = None
+
+
+class BillOut(BaseModel):
+    id: UUID
+    journal_entry_id: UUID
+
+
+@router.post("/obligations/{obligation_id}/bill", status_code=201, response_model=BillOut)
+async def bill_payg_obligation(
+    obligation_id: UUID, body: BillIn,
+    session: AsyncSession = Depends(get_async_session),
+):
+    from finledger.models.revrec import PaygReclassification
+    from finledger.ledger.post import LineSpec, post_entry
+    if body.invoice_amount_cents <= 0:
+        raise HTTPException(422, "invoice_amount_cents must be positive")
+    obl = (await session.execute(
+        select(PerformanceObligation).where(PerformanceObligation.id == obligation_id)
+    )).scalar_one_or_none()
+    if obl is None:
+        raise HTTPException(404, "obligation not found")
+    if obl.pattern != "consumption_payg":
+        raise HTTPException(422, f"obligation pattern is {obl.pattern!r}, not consumption_payg")
+    if body.external_ref:
+        existing = (await session.execute(
+            select(PaygReclassification).where(
+                PaygReclassification.invoice_external_ref == body.external_ref,
+                PaygReclassification.obligation_id == obligation_id,
+            )
+        )).scalar_one_or_none()
+        if existing is not None:
+            return BillOut(id=existing.id, journal_entry_id=existing.journal_entry_id)
+    entry = await post_entry(
+        session,
+        lines=[
+            LineSpec(account_code="1200-AR", side="debit",
+                     amount_cents=body.invoice_amount_cents, currency=obl.currency),
+            LineSpec(account_code=obl.unbilled_ar_account_code, side="credit",
+                     amount_cents=body.invoice_amount_cents, currency=obl.currency),
+        ],
+        memo=f"payg-bill:{obligation_id}:{body.period_start.isoformat()}",
+    )
+    rec = PaygReclassification(
+        id=uuid.uuid4(),
+        obligation_id=obligation_id,
+        amount_cents=body.invoice_amount_cents,
+        invoice_external_ref=body.external_ref,
+        billed_at=datetime.now(timezone.utc),
+        journal_entry_id=entry.id,
+    )
+    session.add(rec)
+    await session.commit()
+    return BillOut(id=rec.id, journal_entry_id=entry.id)
