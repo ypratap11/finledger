@@ -6,6 +6,7 @@ from finledger.models.ledger import Account
 CHART = [
     ("1000-CASH", "Cash", "asset", "debit"),
     ("1200-AR", "Accounts Receivable", "asset", "debit"),
+    ("1500-UNBILLED-AR", "Unbilled Accounts Receivable / Contract Asset", "asset", "debit"),
     ("2000-DEFERRED-REV", "Deferred Revenue", "liability", "credit"),
     ("4000-REV-SUB", "Revenue — Subscription", "revenue", "credit"),
     ("4100-REV-USAGE", "Revenue — Usage", "revenue", "credit"),
