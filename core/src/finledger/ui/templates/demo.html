@@ -240,35 +240,35 @@
 (() => {
   const SCENES = [
     {
-      id: 1, title: "Hook", kind: "title", duration: 11,
+      id: 1, title: "Hook", kind: "title", duration: 14,
       caption: "Every SaaS company rebuilds the same broken pipeline: webhook in, maybe a ledger, maybe reconciliation, finance crying at month-end. FinLedger is the open source one you don't have to build.",
     },
     {
-      id: 2, title: "Source events", kind: "iframe", url: "/", duration: 11,
+      id: 2, title: "Source events", kind: "iframe", url: "/", duration: 14,
       caption: "Stripe charges, Zuora invoices — they all land in the inbox. Every event hash-chained, so any tampering breaks the chain.",
     },
     {
-      id: 3, title: "Double-entry ledger", kind: "iframe", url: "/journal", duration: 11,
+      id: 3, title: "Double-entry ledger", kind: "iframe", url: "/journal", duration: 14,
       caption: "Every journal entry posted with debits equals credits, enforced by Postgres itself, not application code. The books always balance.",
     },
     {
-      id: 4, title: "ASC 606 patterns", kind: "iframe", url: "/revrec/contracts", duration: 13,
+      id: 4, title: "ASC 606 patterns", kind: "iframe", url: "/revrec/contracts", duration: 18,
       caption: "Revenue recognition handles all four ASC 606 Step 5 patterns out of the box: ratable subscriptions, point-in-time licenses, prepaid usage commitments, and pay-as-you-go.",
     },
     {
-      id: 5, title: "Live usage flow", kind: "iframe", url: "/revrec/usage", duration: 13,
+      id: 5, title: "Live usage flow", kind: "iframe", url: "/revrec/usage", duration: 18,
       caption: "When a usage event arrives, revenue accrues — to deferred revenue for prepaid plans, to unbilled receivables for pay-as-you-go. Same engine. One balanced journal entry per run.",
     },
     {
-      id: 6, title: "Waterfall", kind: "iframe", url: "/revrec", duration: 11,
+      id: 6, title: "Waterfall", kind: "iframe", url: "/revrec", duration: 14,
       caption: "The waterfall projects the next twelve months. Backlog, deferred revenue, recognized revenue — your CFO sees it all in one place.",
     },
     {
-      id: 7, title: "Reconciliation", kind: "iframe", url: "/recon", duration: 10,
+      id: 7, title: "Reconciliation", kind: "iframe", url: "/recon", duration: 13,
       caption: "Stripe and Zuora reconcile against the same ledger. Hash chain stays intact. CSV export today, ERP connectors next.",
     },
     {
-      id: 8, title: "Take it", kind: "final", duration: 9,
+      id: 8, title: "Take it", kind: "final", duration: 12,
       caption: "It's open source. Find it at github dot com slash y pratap one one slash finledger. Take it, run it, ship faster.",
     },
   ];
@@ -391,14 +391,13 @@
     }
     sceneIdx++;
     renderScene(sceneIdx);
-    if (isPlaying) {
-      const scene = SCENES[sceneIdx];
-      speak(scene.caption, () => {
-        if (isPlaying) advanceTimer = setTimeout(advance, 600);
-      });
-      const fallbackMs = scene.duration * 1000 + 1500;
-      advanceTimer = setTimeout(() => { if (isPlaying) advance(); }, fallbackMs);
-    }
+    if (!isPlaying) return;
+    const scene = SCENES[sceneIdx];
+    // Fire-and-forget speech; scene timing is authoritative so a blocked
+    // or instantly-ended TTS doesn't make scenes race past.
+    speak(scene.caption, null);
+    const sceneMs = scene.duration * 1000;
+    advanceTimer = setTimeout(() => { if (isPlaying) advance(); }, sceneMs);
   }
 
   function play() {
@@ -418,25 +417,18 @@
   startBtn.addEventListener("click", () => { sceneIdx = -1; play(); });
   restartBtn.addEventListener("click", () => { sceneIdx = -1; finalCard.classList.remove("show"); play(); });
   playBtn.addEventListener("click", () => { if (isPlaying) pause(); else play(); });
-  prevBtn.addEventListener("click", () => {
+  function playFrom(idx) {
     clearTimers();
-    sceneIdx = Math.max(0, sceneIdx - 1);
+    sceneIdx = idx;
     renderScene(sceneIdx);
-    if (isPlaying) {
-      const scene = SCENES[sceneIdx];
-      speak(scene.caption, () => { if (isPlaying) advanceTimer = setTimeout(advance, 600); });
-    }
-  });
+    if (!isPlaying) return;
+    const scene = SCENES[sceneIdx];
+    speak(scene.caption, null);
+    advanceTimer = setTimeout(() => { if (isPlaying) advance(); }, scene.duration * 1000);
+  }
+  prevBtn.addEventListener("click", () => { playFrom(Math.max(0, sceneIdx - 1)); });
   nextBtn.addEventListener("click", () => {
-    clearTimers();
-    if (sceneIdx < SCENES.length - 1) {
-      sceneIdx++;
-      renderScene(sceneIdx);
-      if (isPlaying) {
-        const scene = SCENES[sceneIdx];
-        speak(scene.caption, () => { if (isPlaying) advanceTimer = setTimeout(advance, 600); });
-      }
-    }
+    if (sceneIdx < SCENES.length - 1) playFrom(sceneIdx + 1);
   });
   muteBtn.addEventListener("click", () => {
     isMuted = !isMuted;
