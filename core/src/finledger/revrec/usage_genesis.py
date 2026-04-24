@@ -45,10 +45,10 @@ async def from_zuora_usage(
     if obligation is None:
         log.info(f"no obligation matches rate_plan_charge_id={rate_plan_charge_id!r}; skipping")
         return
-    if obligation.pattern != "consumption":
+    if obligation.pattern not in ("consumption", "consumption_payg"):
         log.warning(
             f"zuora usage event for obligation with pattern {obligation.pattern!r}, "
-            f"not 'consumption'; skipping"
+            f"not consumption-based; skipping"
         )
         return
 

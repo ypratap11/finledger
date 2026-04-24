@@ -65,13 +65,15 @@ class ObligationIn(BaseModel):
     pattern: str
     start_date: date
     end_date: date | None = None
-    total_amount_cents: int
+    total_amount_cents: int | None = None
     currency: str = "USD"
     deferred_revenue_account_code: str = "2000-DEFERRED-REV"
     revenue_account_code: str = "4000-REV-SUB"
     units_total: int | None = None
     unit_label: str | None = None
     external_ref: str | None = None
+    price_per_unit_cents: int | None = None
+    unbilled_ar_account_code: str = "1500-UNBILLED-AR"
 
 
 class ObligationOut(BaseModel):
@@ -129,7 +131,8 @@ async def contract_detail(
     obl_views = []
     for o in obligations:
         recognized = recognized_map.get(o.id, 0)
-        pct = int(100 * recognized / o.total_amount_cents) if o.total_amount_cents else 0
+        total = o.total_amount_cents or 0
+        pct = int(100 * recognized / total) if total else 0
         units_consumed = units_by_obligation.get(o.id, 0)
         units_pct = (
             int(100 * units_consumed / o.units_total)
@@ -139,7 +142,7 @@ async def contract_detail(
         obl_views.append({
             "obligation": o,
             "recognized": recognized,
-            "deferred": o.total_amount_cents - recognized,
+            "deferred": total - recognized,
             "pct": pct,
             "units_consumed": units_consumed,
             "units_pct": units_pct,
@@ -159,7 +162,7 @@ async def create_obligation(
 ):
     if body.pattern == "ratable_daily" and body.end_date is None:
         raise HTTPException(422, "ratable_daily requires end_date")
-    if body.pattern not in ("ratable_daily", "point_in_time", "consumption"):
+    if body.pattern not in ("ratable_daily", "point_in_time", "consumption", "consumption_payg"):
         raise HTTPException(422, f"unknown pattern: {body.pattern}")
     if body.end_date is not None and body.end_date < body.start_date:
         raise HTTPException(422, "end_date before start_date")
@@ -169,6 +172,16 @@ async def create_obligation(
     else:
         if body.units_total is not None:
             raise HTTPException(422, f"units_total only valid for consumption pattern, got {body.pattern}")
+    if body.pattern == "consumption_payg":
+        if body.price_per_unit_cents is None or body.price_per_unit_cents <= 0:
+            raise HTTPException(422, "consumption_payg pattern requires positive price_per_unit_cents")
+        if body.total_amount_cents is not None:
+            raise HTTPException(422, "consumption_payg has no total_amount_cents commitment")
+    else:
+        if body.price_per_unit_cents is not None:
+            raise HTTPException(422, "price_per_unit_cents only valid for consumption_payg pattern")
+        if body.total_amount_cents is None:
+            raise HTTPException(422, f"{body.pattern} requires total_amount_cents")
 
     contract = (await session.execute(
         select(Contract).where(Contract.id == contract_id)
@@ -190,6 +203,8 @@ async def create_obligation(
         units_total=body.units_total,
         unit_label=body.unit_label,
         external_ref=body.external_ref,
+        price_per_unit_cents=body.price_per_unit_cents,
+        unbilled_ar_account_code=body.unbilled_ar_account_code,
         created_at=datetime.now(timezone.utc),
     )
     session.add(obl)
@@ -396,8 +411,8 @@ async def post_usage(
     )).scalar_one_or_none()
     if obligation is None:
         raise HTTPException(404, "obligation not found")
-    if obligation.pattern != "consumption":
-        raise HTTPException(422, f"obligation pattern is {obligation.pattern!r}, not 'consumption'")
+    if obligation.pattern not in ("consumption", "consumption_payg"):
+        raise HTTPException(422, f"obligation pattern is {obligation.pattern!r}, not consumption-based")
 
     ev = UsageEvent(
         id=uuid.uuid4(),
