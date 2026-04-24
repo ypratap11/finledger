@@ -35,12 +35,24 @@ async def process_one(session: AsyncSession, event: SourceEvent) -> bool:
 
     try:
         lines = mapper(event.payload)
-        await post_entry(
+        # PAYG reclassification: if this Zuora invoice points at a consumption_payg
+        # obligation, rewrite the credit account from Deferred Revenue to that
+        # obligation's unbilled-AR contract-asset account.
+        payg_pending = None
+        if event.source == "zuora" and event.event_type == "invoice.posted":
+            from finledger.revrec.payg_billing import reclassify_payg_invoice
+            lines, payg_pending = await reclassify_payg_invoice(
+                session, event.payload, lines, event.id,
+            )
+        entry = await post_entry(
             session,
             lines=lines,
             memo=f"{event.source}:{event.event_type}:{event.external_id}",
             source_event_id=event.id,
         )
+        if payg_pending is not None:
+            payg_pending.journal_entry_id = entry.id
+            session.add(payg_pending)
         # Convention-based revrec genesis (M2a-1): after a successful zuora invoice
         # posting, auto-create contract + obligation if metadata is present.
         if event.source == "zuora" and event.event_type == "invoice.posted":

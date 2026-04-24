@@ -123,3 +123,25 @@ async def test_revrec_usage_empty_returns_200(client_with_fresh_db):
         r = await c.get("/revrec/usage")
     assert r.status_code == 200
     assert "Usage Events" in r.text
+
+
+@pytest.mark.asyncio
+async def test_revrec_payg_contract_detail_renders(client_with_fresh_db):
+    async with AsyncClient(
+        transport=ASGITransport(app=client_with_fresh_db), base_url="http://test", follow_redirects=True
+    ) as c:
+        r1 = await c.post("/revrec/contracts", json={
+            "external_ref": "PAYG-SMOKE", "effective_date": "2026-04-01",
+            "total_amount_cents": 1,
+        })
+        cid = r1.json()["id"]
+        await c.post(f"/revrec/contracts/{cid}/obligations", json={
+            "description": "PAYG smoke", "pattern": "consumption_payg",
+            "start_date": "2026-04-01", "price_per_unit_cents": 10,
+            "unit_label": "API calls",
+        })
+        r3 = await c.get(f"/revrec/contracts/{cid}")
+    assert r3.status_code == 200
+    assert "Pay-as-you-go" in r3.text
+    assert "Recognized (unbilled)" in r3.text
+    assert "Recognized (billed)" in r3.text

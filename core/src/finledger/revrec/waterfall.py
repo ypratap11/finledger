@@ -53,6 +53,10 @@ def project_obligation_by_month(
         out[_month_start(today)] += remaining
         return dict(out)
 
+    if pattern == "consumption_payg":
+        # No commitment to project; PAYG contributes nothing to the waterfall.
+        return dict(out)
+
     if pattern == "ratable_daily":
         assert end is not None
         if already_cents >= total_cents:

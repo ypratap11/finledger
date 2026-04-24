@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from uuid import UUID
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from finledger.models.inbox import Base
@@ -36,13 +36,17 @@ class PerformanceObligation(Base):
     pattern: Mapped[str] = mapped_column(String, nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    total_amount_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    total_amount_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     deferred_revenue_account_code: Mapped[str] = mapped_column(String, nullable=False)
     revenue_account_code: Mapped[str] = mapped_column(String, nullable=False)
     units_total: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     unit_label: Mapped[str | None] = mapped_column(String, nullable=True)
     external_ref: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
+    price_per_unit_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unbilled_ar_account_code: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="1500-UNBILLED-AR",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     contract: Mapped["Contract"] = relationship("Contract", back_populates="obligations")
 
@@ -94,4 +98,24 @@ class UsageEvent(Base):
     recognized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     recognition_run_id: Mapped[UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("revrec.recognition_runs.id"), nullable=True
+    )
+
+
+class PaygReclassification(Base):
+    __tablename__ = "payg_reclassifications"
+    __table_args__ = ({"schema": "revrec"},)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    obligation_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("revrec.performance_obligations.id"), nullable=False
+    )
+    amount_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    invoice_external_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    billed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()"),
+    )
+    journal_entry_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("ledger.journal_entries.id"), nullable=False
+    )
+    source_event_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("inbox.source_events.id"), nullable=True
     )

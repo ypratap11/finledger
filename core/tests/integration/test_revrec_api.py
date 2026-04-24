@@ -309,3 +309,139 @@ async def test_list_usage_returns_events_newest_first(async_client):
     assert len(body["events"]) == 3
     units = [e["units"] for e in body["events"]]
     assert units == [30, 20, 10]
+
+
+# ---- M2a-1.5b: PAYG admin API ------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_payg_obligation_happy(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-API-1", "effective_date": "2026-04-01",
+        "total_amount_cents": 1,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "PAYG API",
+        "pattern": "consumption_payg",
+        "start_date": "2026-04-01",
+        "price_per_unit_cents": 5,
+        "unit_label": "API calls",
+    })
+    assert r2.status_code == 201, r2.text
+
+
+@pytest.mark.asyncio
+async def test_create_payg_without_price_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-API-2", "effective_date": "2026-04-01",
+        "total_amount_cents": 1,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "no price", "pattern": "consumption_payg",
+        "start_date": "2026-04-01",
+    })
+    assert r2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reject_price_on_non_payg_pattern_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-API-3", "effective_date": "2026-04-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "ratable with price", "pattern": "ratable_daily",
+        "start_date": "2026-04-01", "end_date": "2026-04-30",
+        "total_amount_cents": 1000, "price_per_unit_cents": 5,
+    })
+    assert r2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_usage_to_payg_obligation_succeeds(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-USE", "effective_date": "2026-04-01",
+        "total_amount_cents": 1,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "PAYG", "pattern": "consumption_payg",
+        "start_date": "2026-04-01", "price_per_unit_cents": 10,
+    })
+    oid = r2.json()["id"]
+    r3 = await async_client.post("/revrec/usage", json={
+        "obligation_id": oid, "units": 100,
+        "occurred_at": "2026-04-15T10:00:00Z",
+        "idempotency_key": "payg-usage-1",
+    })
+    assert r3.status_code == 201, r3.text
+
+
+@pytest.mark.asyncio
+async def test_admin_bill_payg_obligation_happy(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-BILL-1", "effective_date": "2026-04-01",
+        "total_amount_cents": 1,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "PAYG bill", "pattern": "consumption_payg",
+        "start_date": "2026-04-01", "price_per_unit_cents": 10,
+    })
+    oid = r2.json()["id"]
+    r3 = await async_client.post(f"/revrec/obligations/{oid}/bill", json={
+        "invoice_amount_cents": 5000,
+        "period_start": "2026-04-01",
+        "period_end": "2026-04-30",
+        "external_ref": "INV-PAYG-X",
+    })
+    assert r3.status_code == 201, r3.text
+    assert "id" in r3.json()
+    assert "journal_entry_id" in r3.json()
+
+
+@pytest.mark.asyncio
+async def test_admin_bill_idempotent_on_external_ref(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "PAYG-BILL-IDEMP", "effective_date": "2026-04-01",
+        "total_amount_cents": 1,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "PAYG", "pattern": "consumption_payg",
+        "start_date": "2026-04-01", "price_per_unit_cents": 10,
+    })
+    oid = r2.json()["id"]
+    body = {
+        "invoice_amount_cents": 5000,
+        "period_start": "2026-04-01",
+        "period_end": "2026-04-30",
+        "external_ref": "INV-DUP",
+    }
+    a = await async_client.post(f"/revrec/obligations/{oid}/bill", json=body)
+    b = await async_client.post(f"/revrec/obligations/{oid}/bill", json=body)
+    assert a.status_code == 201
+    assert b.json()["id"] == a.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_admin_bill_non_payg_obligation_422(async_client):
+    r = await async_client.post("/revrec/contracts", json={
+        "external_ref": "BILL-RATABLE", "effective_date": "2026-04-01",
+        "total_amount_cents": 1000,
+    })
+    cid = r.json()["id"]
+    r2 = await async_client.post(f"/revrec/contracts/{cid}/obligations", json={
+        "description": "ratable", "pattern": "ratable_daily",
+        "start_date": "2026-04-01", "end_date": "2026-04-30",
+        "total_amount_cents": 1000,
+    })
+    oid = r2.json()["id"]
+    r3 = await async_client.post(f"/revrec/obligations/{oid}/bill", json={
+        "invoice_amount_cents": 1000,
+        "period_start": "2026-04-01",
+        "period_end": "2026-04-30",
+    })
+    assert r3.status_code == 422

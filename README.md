@@ -55,6 +55,17 @@ See `docs/superpowers/specs/2026-04-21-m2a-1-5a-consumption-drain-design.md` for
 
 Still to come: **M2a-1.5b** (pay-as-you-go, no commitment), **M2a-1.5c** (overage flagging + hybrid), CSV batch import of usage, and usage-rate projection in the waterfall.
 
+## What M2a-1.5b adds (pay-as-you-go usage)
+
+- **New `consumption_payg` recognition pattern.** Usage-based contracts with no upfront commitment. Revenue accrues at a flat per-unit rate as units are consumed, capped only by what's actually used (no commitment, no over-recognition risk).
+- **Unbilled AR accrual.** PAYG recognition posts DR `1500-UNBILLED-AR` (Contract Asset) / CR Revenue. The unbilled AR account is configurable per obligation in case different products want different contract-asset accounts.
+- **Billing reclassification.** When Zuora's `invoice.posted` carries `metadata.payg_obligation_ref` matching a `consumption_payg` obligation, FinLedger's posting engine rewrites the credit account from Deferred Revenue to that obligation's Unbilled AR account — moving the balance from contract-asset to billed AR without double-recognizing revenue.
+- **Admin bill fallback.** `POST /revrec/obligations/{id}/bill` for cases where the Zuora-driven path isn't available; idempotent on `external_ref`.
+- **Per-obligation tracking.** New `revrec.payg_reclassifications` table records every Unbilled→Billed AR move. Contract detail page shows the Recognized split (unbilled vs billed) plus a per-unit rate and the recent-events disclosure shared with prepaid consumption.
+- **Waterfall behavior.** PAYG obligations contribute zero to the 12-month projection (no commitment to project; usage-rate forecasting deferred).
+
+See `docs/superpowers/specs/2026-04-24-m2a-1-5b-payg-recognition-design.md` for the full design.
+
 ## Run locally
 
     docker compose up -d postgres

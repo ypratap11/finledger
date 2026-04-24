@@ -65,13 +65,15 @@ class ObligationIn(BaseModel):
     pattern: str
     start_date: date
     end_date: date | None = None
-    total_amount_cents: int
+    total_amount_cents: int | None = None
     currency: str = "USD"
     deferred_revenue_account_code: str = "2000-DEFERRED-REV"
     revenue_account_code: str = "4000-REV-SUB"
     units_total: int | None = None
     unit_label: str | None = None
     external_ref: str | None = None
+    price_per_unit_cents: int | None = None
+    unbilled_ar_account_code: str = "1500-UNBILLED-AR"
 
 
 class ObligationOut(BaseModel):
@@ -103,21 +105,21 @@ async def contract_detail(
     )).all()
     recognized_map = {oid: int(cents) for oid, cents in rec_rows}
 
-    from finledger.models.revrec import UsageEvent
-    consumption_ids = [o.id for o in obligations if o.pattern == "consumption"]
+    from finledger.models.revrec import UsageEvent, PaygReclassification
+    usage_pattern_ids = [o.id for o in obligations if o.pattern in ("consumption", "consumption_payg")]
     units_by_obligation: dict = {}
     recent_events_by_obligation: dict = {}
-    if consumption_ids:
+    if usage_pattern_ids:
         unit_rows = (await session.execute(
             select(
                 UsageEvent.obligation_id,
                 func.coalesce(func.sum(UsageEvent.units), 0),
             )
-            .where(UsageEvent.obligation_id.in_(consumption_ids))
+            .where(UsageEvent.obligation_id.in_(usage_pattern_ids))
             .group_by(UsageEvent.obligation_id)
         )).all()
         units_by_obligation = {oid: int(n) for oid, n in unit_rows}
-        for oid in consumption_ids:
+        for oid in usage_pattern_ids:
             recent = (await session.execute(
                 select(UsageEvent)
                 .where(UsageEvent.obligation_id == oid)
@@ -126,24 +128,42 @@ async def contract_detail(
             )).scalars().all()
             recent_events_by_obligation[oid] = recent
 
+    payg_ids = [o.id for o in obligations if o.pattern == "consumption_payg"]
+    billed_by_obligation: dict = {}
+    if payg_ids:
+        billed_rows = (await session.execute(
+            select(
+                PaygReclassification.obligation_id,
+                func.coalesce(func.sum(PaygReclassification.amount_cents), 0),
+            )
+            .where(PaygReclassification.obligation_id.in_(payg_ids))
+            .group_by(PaygReclassification.obligation_id)
+        )).all()
+        billed_by_obligation = {oid: int(amt) for oid, amt in billed_rows}
+
     obl_views = []
     for o in obligations:
         recognized = recognized_map.get(o.id, 0)
-        pct = int(100 * recognized / o.total_amount_cents) if o.total_amount_cents else 0
+        total = o.total_amount_cents or 0
+        pct = int(100 * recognized / total) if total else 0
         units_consumed = units_by_obligation.get(o.id, 0)
         units_pct = (
             int(100 * units_consumed / o.units_total)
             if (o.pattern == "consumption" and o.units_total)
             else 0
         )
+        recognized_billed = billed_by_obligation.get(o.id, 0)
+        recognized_unbilled = recognized - recognized_billed
         obl_views.append({
             "obligation": o,
             "recognized": recognized,
-            "deferred": o.total_amount_cents - recognized,
+            "deferred": total - recognized,
             "pct": pct,
             "units_consumed": units_consumed,
             "units_pct": units_pct,
             "recent_events": recent_events_by_obligation.get(o.id, []),
+            "recognized_unbilled": recognized_unbilled,
+            "recognized_billed": recognized_billed,
         })
 
     return request.app.state.templates.TemplateResponse(
@@ -159,7 +179,7 @@ async def create_obligation(
 ):
     if body.pattern == "ratable_daily" and body.end_date is None:
         raise HTTPException(422, "ratable_daily requires end_date")
-    if body.pattern not in ("ratable_daily", "point_in_time", "consumption"):
+    if body.pattern not in ("ratable_daily", "point_in_time", "consumption", "consumption_payg"):
         raise HTTPException(422, f"unknown pattern: {body.pattern}")
     if body.end_date is not None and body.end_date < body.start_date:
         raise HTTPException(422, "end_date before start_date")
@@ -169,6 +189,16 @@ async def create_obligation(
     else:
         if body.units_total is not None:
             raise HTTPException(422, f"units_total only valid for consumption pattern, got {body.pattern}")
+    if body.pattern == "consumption_payg":
+        if body.price_per_unit_cents is None or body.price_per_unit_cents <= 0:
+            raise HTTPException(422, "consumption_payg pattern requires positive price_per_unit_cents")
+        if body.total_amount_cents is not None:
+            raise HTTPException(422, "consumption_payg has no total_amount_cents commitment")
+    else:
+        if body.price_per_unit_cents is not None:
+            raise HTTPException(422, "price_per_unit_cents only valid for consumption_payg pattern")
+        if body.total_amount_cents is None:
+            raise HTTPException(422, f"{body.pattern} requires total_amount_cents")
 
     contract = (await session.execute(
         select(Contract).where(Contract.id == contract_id)
@@ -190,6 +220,8 @@ async def create_obligation(
         units_total=body.units_total,
         unit_label=body.unit_label,
         external_ref=body.external_ref,
+        price_per_unit_cents=body.price_per_unit_cents,
+        unbilled_ar_account_code=body.unbilled_ar_account_code,
         created_at=datetime.now(timezone.utc),
     )
     session.add(obl)
@@ -302,7 +334,7 @@ async def waterfall(
     for o in obligations:
         cents, through = already_map.get(o.id, (0, None))
         m = project_obligation_by_month(
-            total_cents=o.total_amount_cents,
+            total_cents=o.total_amount_cents or 0,
             start=o.start_date, end=o.end_date, pattern=o.pattern,
             already_cents=cents, already_through=through,
             today=today, horizon_months=months,
@@ -396,8 +428,8 @@ async def post_usage(
     )).scalar_one_or_none()
     if obligation is None:
         raise HTTPException(404, "obligation not found")
-    if obligation.pattern != "consumption":
-        raise HTTPException(422, f"obligation pattern is {obligation.pattern!r}, not 'consumption'")
+    if obligation.pattern not in ("consumption", "consumption_payg"):
+        raise HTTPException(422, f"obligation pattern is {obligation.pattern!r}, not consumption-based")
 
     ev = UsageEvent(
         id=uuid.uuid4(),
@@ -451,3 +483,65 @@ async def list_usage(
         request=request, name="revrec_usage.html",
         context={"events": rows},
     )
+
+
+# ---- M2a-1.5b: PAYG admin bill -----------------------------------------------
+
+class BillIn(BaseModel):
+    invoice_amount_cents: int
+    period_start: date
+    period_end: date
+    external_ref: str | None = None
+
+
+class BillOut(BaseModel):
+    id: UUID
+    journal_entry_id: UUID
+
+
+@router.post("/obligations/{obligation_id}/bill", status_code=201, response_model=BillOut)
+async def bill_payg_obligation(
+    obligation_id: UUID, body: BillIn,
+    session: AsyncSession = Depends(get_async_session),
+):
+    from finledger.models.revrec import PaygReclassification
+    from finledger.ledger.post import LineSpec, post_entry
+    if body.invoice_amount_cents <= 0:
+        raise HTTPException(422, "invoice_amount_cents must be positive")
+    obl = (await session.execute(
+        select(PerformanceObligation).where(PerformanceObligation.id == obligation_id)
+    )).scalar_one_or_none()
+    if obl is None:
+        raise HTTPException(404, "obligation not found")
+    if obl.pattern != "consumption_payg":
+        raise HTTPException(422, f"obligation pattern is {obl.pattern!r}, not consumption_payg")
+    if body.external_ref:
+        existing = (await session.execute(
+            select(PaygReclassification).where(
+                PaygReclassification.invoice_external_ref == body.external_ref,
+                PaygReclassification.obligation_id == obligation_id,
+            )
+        )).scalar_one_or_none()
+        if existing is not None:
+            return BillOut(id=existing.id, journal_entry_id=existing.journal_entry_id)
+    entry = await post_entry(
+        session,
+        lines=[
+            LineSpec(account_code="1200-AR", side="debit",
+                     amount_cents=body.invoice_amount_cents, currency=obl.currency),
+            LineSpec(account_code=obl.unbilled_ar_account_code, side="credit",
+                     amount_cents=body.invoice_amount_cents, currency=obl.currency),
+        ],
+        memo=f"payg-bill:{obligation_id}:{body.period_start.isoformat()}",
+    )
+    rec = PaygReclassification(
+        id=uuid.uuid4(),
+        obligation_id=obligation_id,
+        amount_cents=body.invoice_amount_cents,
+        invoice_external_ref=body.external_ref,
+        billed_at=datetime.now(timezone.utc),
+        journal_entry_id=entry.id,
+    )
+    session.add(rec)
+    await session.commit()
+    return BillOut(id=rec.id, journal_entry_id=entry.id)

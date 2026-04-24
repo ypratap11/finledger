@@ -63,3 +63,13 @@ def test_consumption_fully_recognized_returns_empty():
         today=date(2026, 5, 15), horizon_months=12,
     )
     assert sum(months.values()) == 0
+
+
+def test_consumption_payg_contributes_nothing():
+    months = project_obligation_by_month(
+        total_cents=0, start=date(2026, 1, 1), end=None,
+        pattern="consumption_payg",
+        already_cents=5000, already_through=None,
+        today=date(2026, 5, 15), horizon_months=12,
+    )
+    assert sum(months.values()) == 0
