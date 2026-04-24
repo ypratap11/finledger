@@ -80,6 +80,20 @@ async def main() -> None:
             "pattern": "consumption",
             "units_total": 5_000_000,
             "unit_label": "API calls",
+            "price_per_unit_cents": None,
+        },
+        # Pay-as-you-go (no commitment), started 30 days ago
+        {
+            "ref": "I-SOYLENT-PAYG",
+            "customer": "Soylent Industries",
+            "start": date.today() - timedelta(days=30),
+            "end": None,
+            "amount": None,
+            "desc": "API calls metered, $0.001/call",
+            "pattern": "consumption_payg",
+            "units_total": None,
+            "unit_label": "API calls",
+            "price_per_unit_cents": 1,  # $0.01 per unit (cents)
         },
     ]
 
@@ -96,13 +110,15 @@ async def main() -> None:
             await engine.dispose()
             return
         for c in contracts:
+            # Contract.total_amount_cents has CHECK > 0; for PAYG we use 1 cent placeholder
+            contract_total = c["amount"] if c["amount"] is not None else 1
             contract = Contract(
                 id=uuid.uuid4(),
                 external_ref=c["ref"],
                 customer_id=c["customer"],
                 effective_date=c["start"],
                 status="active",
-                total_amount_cents=c["amount"],
+                total_amount_cents=contract_total,
                 currency="USD",
                 created_at=now,
             )
@@ -119,8 +135,10 @@ async def main() -> None:
                 currency="USD",
                 units_total=c["units_total"],
                 unit_label=c["unit_label"],
+                price_per_unit_cents=c.get("price_per_unit_cents"),
                 deferred_revenue_account_code="2000-DEFERRED-REV",
                 revenue_account_code="4000-REV-SUB",
+                unbilled_ar_account_code="1500-UNBILLED-AR",
                 created_at=now,
             ))
         await s.commit()
@@ -145,6 +163,29 @@ async def main() -> None:
                         occurred_at=ts,
                         received_at=ts,
                         idempotency_key=f"demo-usage-{i}",
+                        source="api",
+                    ))
+                await s.commit()
+
+    # Seed PAYG usage events (no commitment, $0.01/call → recognize as consumed)
+    async with S() as s:
+        payg = (await s.execute(
+            select(PerformanceObligation).where(PerformanceObligation.pattern == "consumption_payg")
+        )).scalars().first()
+        if payg is not None:
+            existing_usage = (await s.execute(
+                select(UsageEvent).where(UsageEvent.obligation_id == payg.id)
+            )).scalars().first()
+            if existing_usage is None:
+                for i, qty in enumerate([45_000, 62_000, 38_000]):
+                    ts = now - timedelta(days=21 - (i * 7))
+                    s.add(UsageEvent(
+                        id=uuid.uuid4(),
+                        obligation_id=payg.id,
+                        units=qty,
+                        occurred_at=ts,
+                        received_at=ts,
+                        idempotency_key=f"demo-payg-usage-{i}",
                         source="api",
                     ))
                 await s.commit()

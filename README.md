@@ -66,6 +66,17 @@ Still to come: **M2a-1.5b** (pay-as-you-go, no commitment), **M2a-1.5c** (overag
 
 See `docs/superpowers/specs/2026-04-24-m2a-1-5b-payg-recognition-design.md` for the full design.
 
+## End-to-end demo
+
+For a full walkthrough — bring up the stack, tour each UI surface, drive every flow with curl, exercise all four ASC 606 Step 5 recognition patterns — see [`docs/DEMO.md`](docs/DEMO.md). The shortest path:
+
+```bash
+docker compose -f docker-compose.full.yml up --build
+# wait ~40s; open http://localhost:8003
+```
+
+Seed scripts auto-run and produce 5 contracts (ratable + prepaid consumption + PAYG), 7 usage events, 1 recognition run posting ~$50k of revenue.
+
 ## Run locally
 
     docker compose up -d postgres
