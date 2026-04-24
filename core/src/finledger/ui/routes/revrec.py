@@ -1,10 +1,11 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from finledger.db import SessionLocal, SyncSessionLocal
 from finledger.models.revrec import Contract, PerformanceObligation
@@ -361,9 +362,6 @@ async def revrec_index(request: Request, session: AsyncSession = Depends(get_asy
 
 
 # ---- M2a-1.5a: usage events --------------------------------------------------
-
-from datetime import timedelta
-from sqlalchemy.exc import IntegrityError
 
 
 class UsageIn(BaseModel):
