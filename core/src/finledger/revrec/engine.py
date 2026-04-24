@@ -78,7 +78,7 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
         already_cents, already_through = await _obligation_state(session, o.id)
         unprocessed_units = 0
         obl_event_ids: list[uuid.UUID] = []
-        if o.pattern == "consumption":
+        if o.pattern in ("consumption", "consumption_payg"):
             unprocessed_units, obl_event_ids = await _pending_usage_for(session, o.id)
         snap = ObligationSnapshot(
             total_amount_cents=o.total_amount_cents,
@@ -86,18 +86,23 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
             end_date=o.end_date,
             pattern=o.pattern,
             units_total=o.units_total,
+            price_per_unit_cents=o.price_per_unit_cents,
         )
         delta = compute_recognition(
             snap, already_cents, already_through, through_date,
             unprocessed_units=unprocessed_units,
         )
         if delta is None:
-            # Even when compute returns None for consumption (e.g. already at cap),
-            # still mark pending events processed so they aren't re-queued forever.
-            if o.pattern == "consumption" and obl_event_ids:
+            # Mark pending events processed even on a no-op so they aren't re-queued.
+            if o.pattern in ("consumption", "consumption_payg") and obl_event_ids:
                 picked_up_event_ids.extend(obl_event_ids)
             continue
-        lines_agg[(o.deferred_revenue_account_code, "debit")] += delta.recognized_cents
+        debit_account = (
+            o.unbilled_ar_account_code
+            if o.pattern == "consumption_payg"
+            else o.deferred_revenue_account_code
+        )
+        lines_agg[(debit_account, "debit")] += delta.recognized_cents
         lines_agg[(o.revenue_account_code, "credit")] += delta.recognized_cents
         events.append(RecognitionEvent(
             id=uuid.uuid4(),
@@ -108,7 +113,7 @@ async def run_recognition(session: AsyncSession, *, through_date: date) -> Recog
         ))
         obligations_processed += 1
         total += delta.recognized_cents
-        if o.pattern == "consumption":
+        if o.pattern in ("consumption", "consumption_payg"):
             picked_up_event_ids.extend(obl_event_ids)
 
     if obligations_processed > 0:

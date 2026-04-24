@@ -162,3 +162,39 @@ def test_consumption_rounding_floor():
     s = snap_consumption(total=10000, units_total=1000)
     d = compute_recognition(s, 0, None, date(2026, 5, 1), unprocessed_units=333)
     assert d.recognized_cents == 3330
+
+
+def snap_payg(price_per_unit_cents):
+    return ObligationSnapshot(
+        total_amount_cents=None,
+        start_date=date(2026, 1, 1), end_date=None,
+        pattern="consumption_payg",
+        price_per_unit_cents=price_per_unit_cents,
+    )
+
+
+def test_consumption_payg_zero_units_returns_none():
+    assert compute_recognition(snap_payg(10), 0, None, date(2026, 5, 1), unprocessed_units=0) is None
+
+
+def test_consumption_payg_happy_path_units_times_price():
+    d = compute_recognition(snap_payg(10), 0, None, date(2026, 5, 1), unprocessed_units=300)
+    assert d.recognized_cents == 3000
+
+
+def test_consumption_payg_no_cap_above_arbitrary_amount():
+    # Already recognized irrelevant for PAYG — no commitment cap applies
+    d = compute_recognition(snap_payg(5), 1_000_000, None, date(2026, 5, 1), unprocessed_units=10_000)
+    assert d.recognized_cents == 50_000
+
+
+def test_consumption_payg_missing_price_raises():
+    s = snap_payg(None)
+    with pytest.raises(ValueError, match="price_per_unit_cents"):
+        compute_recognition(s, 0, None, date(2026, 5, 1), unprocessed_units=10)
+
+
+def test_consumption_payg_zero_price_raises():
+    s = snap_payg(0)
+    with pytest.raises(ValueError, match="price_per_unit_cents"):
+        compute_recognition(s, 0, None, date(2026, 5, 1), unprocessed_units=10)

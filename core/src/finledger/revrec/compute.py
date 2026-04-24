@@ -5,11 +5,12 @@ from datetime import date, timedelta
 @dataclass(frozen=True)
 class ObligationSnapshot:
     """Minimum shape needed to compute recognition. Model-agnostic."""
-    total_amount_cents: int
+    total_amount_cents: int | None
     start_date: date
     end_date: date | None
     pattern: str
     units_total: int | None = None
+    price_per_unit_cents: int | None = None
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,29 @@ def compute_recognition(
         return _compute_consumption(
             obligation, already_recognized_cents, unprocessed_units, run_through_date
         )
+    if obligation.pattern == "consumption_payg":
+        return _compute_consumption_payg(
+            obligation, unprocessed_units, run_through_date
+        )
     raise ValueError(f"unknown pattern: {obligation.pattern}")
+
+
+def _compute_consumption_payg(
+    o: ObligationSnapshot,
+    unprocessed_units: int,
+    run_through_date: date,
+) -> RecognitionDelta | None:
+    if unprocessed_units <= 0:
+        return None
+    if o.price_per_unit_cents is None or o.price_per_unit_cents <= 0:
+        raise ValueError("consumption_payg obligation requires positive price_per_unit_cents")
+    amount = unprocessed_units * o.price_per_unit_cents
+    if amount <= 0:
+        return None
+    return RecognitionDelta(
+        recognized_cents=amount,
+        recognized_through=run_through_date,
+    )
 
 
 def _compute_consumption(
