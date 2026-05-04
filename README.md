@@ -1,17 +1,29 @@
 # FinLedger
 
 [![CI](https://github.com/ypratap11/finledger/actions/workflows/ci.yml/badge.svg)](https://github.com/ypratap11/finledger/actions/workflows/ci.yml)
+[![Release](https://github.com/ypratap11/finledger/actions/workflows/release.yml/badge.svg)](https://github.com/ypratap11/finledger/actions/workflows/release.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Container](https://img.shields.io/badge/ghcr.io-finledger%2Fcore-2496ED?logo=docker&logoColor=white)](https://github.com/ypratap11/finledger/pkgs/container/finledger%2Fcore)
+[![▶ Watch the 90s demo](https://img.shields.io/badge/%E2%96%B6%EF%B8%8F-Watch%20the%2090s%20demo-7c3aed)](docs/DEMO_VIDEO_SCRIPT.md)
 
 **Created and maintained by [Pratap Yeragudipati](https://github.com/ypratap11).**
 
-An open-source SaaS finance pipeline. Stripe and Zuora webhooks enter through a Node/TS edge, land in a hash-chained source-event inbox, are posted by a Python engine into a double-entry ledger (enforced by Postgres triggers), and are reconciled against the source — all viewable on an HTMX dashboard. An ASC 606 revenue-recognition engine drains deferred revenue over time. A pluggable GL exporter writes CSV journal files today; SAP/Oracle/NetSuite connectors slot into the same seam later.
+Open-source SaaS finance pipeline. Stripe + Zuora webhooks enter through a Node/TS edge, land in a hash-chained source-event inbox, are posted by a Python engine into a double-entry ledger (enforced by Postgres triggers), reconciled against the source, and recognized through an ASC 606 engine that handles all four Step-5 patterns (ratable, point-in-time, prepaid usage, pay-as-you-go). HTMX admin dashboard. Pluggable GL exporter (CSV today; SAP/Oracle/NetSuite slot in next).
 
 ![Revenue waterfall](docs/images/revrec-waterfall.png)
 
-See `docs/superpowers/specs/2026-04-14-finledger-design.md` for the full design, and `docs/superpowers/plans/` for the implementation plans (M1, M2a-1).
+> _Demo GIF lands here. Record the `/demo` tour with Loom or Kap, drop the file at `docs/images/demo-tour.gif`._
 
-## One-command quickstart
+## Try it in 30 seconds (no clone)
+
+```bash
+curl -sL https://raw.githubusercontent.com/ypratap11/finledger/master/docker-compose.image.yml \
+  | docker compose -f - up
+```
+
+Wait for `Application startup complete`, then open **<http://localhost:8003/demo>** for the in-app guided tour, or `/` for the live admin dashboard.
+
+## Develop / hack on it
 
 ```bash
 git clone https://github.com/ypratap11/finledger.git
@@ -19,7 +31,9 @@ cd finledger
 docker compose -f docker-compose.full.yml up --build
 ```
 
-Then open **http://localhost:8003/** — postgres, migrations, demo seed data, the Python UI, and the Node ingest-edge all come up together.
+Postgres, migrations, demo seed data, the Python UI, and the Node ingest-edge all come up together.
+
+See [`docs/DEMO.md`](docs/DEMO.md) for an end-to-end walkthrough (curl recipes, journal verification, recon, CSV export). See `docs/superpowers/specs/` for the full design docs across M1, M2a-1, M2a-1.5a, M2a-1.5b.
 
 ## What M1 demonstrates
 

@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    tags: ['m*', 'v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-core-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${REPO_LC}/core"
+          TAGS="${IMAGE}:sha-${GITHUB_SHA::7}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAGS="${TAGS},${IMAGE}:${GITHUB_REF_NAME}"
+            TAGS="${TAGS},${IMAGE}:latest"
+          elif [ "${GITHUB_REF}" = "refs/heads/master" ]; then
+            TAGS="${TAGS},${IMAGE}:edge"
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push core image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./core/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.title=FinLedger
+            org.opencontainers.image.description=Open-source SaaS finance pipeline (ingest, ledger, revrec, recon)
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Image summary
+        run: |
+          echo "Published tags:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pull with: \`docker pull ${{ steps.tags.outputs.image }}:latest\`" >> $GITHUB_STEP_SUMMARY
